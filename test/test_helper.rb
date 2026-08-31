@@ -22,18 +22,8 @@ require_relative "test_helpers/session_test_helper"
 
 module ActiveSupport
   class TestCase
-    if ENV["COVERAGE"] || ENV["CI"]
-      parallelize_setup do |worker|
-        SimpleCov.command_name "#{SimpleCov.command_name}-#{worker}"
-      end
-
-      parallelize_teardown do |_worker|
-        SimpleCov.result
-      end
-    end
-
-    # Run tests in parallel with specified workers
-    parallelize(workers: :number_of_processors)
+    # Run tests in parallel with specified workers (single worker when measuring coverage for exact collation)
+    parallelize(workers: (ENV["COVERAGE"] || ENV["CI"]) ? 1 : :number_of_processors)
 
     # Setup all fixtures in test/fixtures/*.yml for all tests in alphabetical order.
     fixtures :all
