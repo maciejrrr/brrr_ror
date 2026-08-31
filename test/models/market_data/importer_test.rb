@@ -26,6 +26,22 @@ class MarketData::ImporterTest < ActiveSupport::TestCase
     assert_equal 2, result[:assets_failed]
   end
 
+  test "overlaps the latest five candles on repeat imports" do
+    provider = StubProvider.new(nil, error: "provider unavailable")
+    latest = assets(:spy).price_bars.one_day.maximum(:open_time)
+    calls = []
+    provider.define_singleton_method(:fetch) do |**arguments|
+      calls << arguments
+      raise "stop after checking the cursor"
+    end
+
+    MarketData::Importer.new(provider_registry: { "yahoo_finance" => provider, "binance" => provider }).call(
+      from: Time.utc(2024, 1, 10), to: Time.utc(2024, 1, 11), as_of: Time.utc(2024, 1, 12)
+    )
+
+    assert_equal latest - 5.days, calls.find { |call| call[:symbol] == "SPY" }[:from]
+  end
+
   class StubProvider
     def initialize(candle, error: nil)
       @candle = candle

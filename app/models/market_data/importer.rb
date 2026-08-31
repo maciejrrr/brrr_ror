@@ -34,8 +34,7 @@ module MarketData
         asset.supported_intervals.sum do |interval|
           candles = provider.fetch(
             symbol: asset.price_provider_symbol,
-            interval:,
-            from:, to:, as_of:
+            interval:, from: fetch_from(asset, interval, from), to:, as_of:
           )
           persist(asset, interval, candles)
         end
@@ -43,6 +42,13 @@ module MarketData
 
       def provider_for(asset)
         @provider_registry.fetch(asset.price_provider) { PROVIDERS.fetch(asset.price_provider).new }
+      end
+
+      def fetch_from(asset, interval, requested_from)
+        latest = asset.price_bars.public_send(interval).latest_first.pick(:open_time)
+        return requested_from unless latest
+
+        [ requested_from, latest - (PriceBar::INTERVAL_SECONDS.fetch(interval) * 5) ].min
       end
 
       def persist(asset, interval, candles)
