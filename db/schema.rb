@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_31_110000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_31_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -63,9 +63,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_31_110000) do
   create_table "backtest_trades", force: :cascade do |t|
     t.bigint "backtest_run_id", null: false
     t.datetime "created_at", null: false
-    t.decimal "entry_price", precision: 30, scale: 10, null: false
+    t.decimal "entry_price", precision: 38, scale: 18, null: false
     t.datetime "entry_time", null: false
-    t.decimal "exit_price", precision: 30, scale: 10
+    t.decimal "exit_price", precision: 38, scale: 18
     t.datetime "exit_time"
     t.integer "holding_bars", null: false
     t.boolean "open_position", default: false, null: false
@@ -76,16 +76,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_31_110000) do
 
   create_table "price_bars", force: :cascade do |t|
     t.bigint "asset_id", null: false
-    t.decimal "close", precision: 30, scale: 10, null: false
+    t.decimal "close", precision: 38, scale: 18, null: false
     t.datetime "created_at", null: false
     t.integer "data_source", default: 1, null: false
-    t.decimal "high", precision: 30, scale: 10, null: false
+    t.decimal "high", precision: 38, scale: 18, null: false
     t.integer "interval", null: false
-    t.decimal "low", precision: 30, scale: 10, null: false
-    t.decimal "open", precision: 30, scale: 10, null: false
+    t.decimal "low", precision: 38, scale: 18, null: false
+    t.decimal "open", precision: 38, scale: 18, null: false
     t.datetime "open_time", null: false
     t.datetime "updated_at", null: false
-    t.decimal "volume", precision: 30, scale: 10, null: false
+    t.decimal "volume", precision: 38, scale: 18, null: false
     t.index ["asset_id", "interval", "open_time"], name: "index_price_bars_on_asset_id_and_interval_and_open_time", unique: true
     t.index ["asset_id"], name: "index_price_bars_on_asset_id"
   end

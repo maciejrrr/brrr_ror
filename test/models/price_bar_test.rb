@@ -47,4 +47,12 @@ class PriceBarTest < ActiveSupport::TestCase
     assert_equal "UTC", connection.select_value("SHOW TIMEZONE")
     assert_equal "timestamp(6) with time zone", open_time_column.sql_type
   end
+
+  test "stores market data with crypto-grade decimal precision" do
+    connection = ActiveRecord::Base.connection
+    open_column = connection.columns(:price_bars).find { |column| column.name == "open" }
+
+    assert_equal 38, open_column.precision
+    assert_equal 18, open_column.scale
+  end
 end
