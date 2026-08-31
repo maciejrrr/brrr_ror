@@ -27,7 +27,8 @@ class PriceBar < ApplicationRecord
 
     def open_time_is_aligned
       return if open_time.blank? || interval.blank?
-      return if (open_time.to_i % INTERVAL_SECONDS.fetch(interval)).zero?
+      interval_seconds = INTERVAL_SECONDS.fetch(interval)
+      return if open_time.usec.zero? && (open_time.to_i % interval_seconds).zero?
 
       errors.add(:open_time, "must align to the candle interval in UTC")
     end

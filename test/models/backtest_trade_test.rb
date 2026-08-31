@@ -20,6 +20,14 @@ class BacktestTradeTest < ActiveSupport::TestCase
     assert trade.valid?
   end
 
+  test "rejects non-finite returns" do
+    trade = backtest_trades(:completed_trade)
+    trade.return_percentage = Float::NAN
+
+    assert_not trade.valid?
+    assert trade.errors.of_kind?(:return_percentage, :not_a_number)
+  end
+
   test "destroying a run deletes its trades" do
     run = backtest_runs(:completed)
     trade_id = backtest_trades(:completed_trade).id

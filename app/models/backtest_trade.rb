@@ -5,6 +5,9 @@ class BacktestTrade < ApplicationRecord
   validates :entry_price, numericality: { greater_than: 0 }
   validates :exit_price, numericality: { greater_than: 0 }, allow_nil: true
   validates :return_percentage, numericality: true, allow_nil: true
+  validates_each :return_percentage, allow_nil: true do |record, attribute, value|
+    record.errors.add(attribute, :not_a_number) unless value.finite?
+  end
   validates :holding_bars, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validate :exit_time_follows_entry
   validate :closed_trade_has_exit_values

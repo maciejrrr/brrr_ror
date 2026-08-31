@@ -40,6 +40,14 @@ class PriceBarTest < ActiveSupport::TestCase
     assert_includes bar.errors[:open_time], "must align to the candle interval in UTC"
   end
 
+  test "rejects timestamps with subsecond precision" do
+    bar = price_bars(:btc_hour)
+    bar.open_time += 0.5
+
+    assert_not bar.valid?
+    assert_includes bar.errors[:open_time], "must align to the candle interval in UTC"
+  end
+
   test "database session and candle columns use UTC-aware timestamps" do
     connection = ActiveRecord::Base.connection
     open_time_column = connection.columns(:price_bars).find { |column| column.name == "open_time" }
