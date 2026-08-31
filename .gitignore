@@ -3,6 +3,7 @@
 /.env
 /.env.*
 !/.env.example
+/.temp/
 /.ruby-lsp
 /.yardoc
 /_yardoc/
