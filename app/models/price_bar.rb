@@ -17,6 +17,31 @@ class PriceBar < ApplicationRecord
   scope :between, ->(from_time, to_time) { where(open_time: from_time..to_time) }
   scope :latest_first, -> { order(open_time: :desc) }
 
+  def as_chart_point
+    {
+      time: open_time.to_i,
+      open: open.to_f,
+      high: high.to_f,
+      low: low.to_f,
+      close: close.to_f,
+      volume: volume.to_f
+    }
+  end
+
+  def self.time_window(latest_open, interval:, from: nil, to: nil)
+    latest = latest_open || Time.current.utc
+    to_time = to.present? ? Time.zone.parse(to.to_s).end_of_day.utc : latest.end_of_day.utc
+
+    from_time = if from.present?
+      Time.zone.parse(from.to_s).beginning_of_day.utc
+    else
+      default_window = interval.to_s == "one_hour" ? 30.days : 365.days
+      (latest - default_window).beginning_of_day.utc
+    end
+
+    from_time..to_time
+  end
+
   private
     def ohlc_values_are_coherent
       return unless [ open, high, low, close ].all?

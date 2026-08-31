@@ -52,9 +52,18 @@ class BacktestRun < ApplicationRecord
   validate :equity_curve_is_an_array
   validate :configuration_is_immutable_after_execution_starts, on: :update
 
+  after_initialize :set_defaults, if: :new_record?
+
   scope :recent, -> { order(created_at: :desc) }
   scope :for_strategy, ->(strategy_key) { where(strategy_key:) }
   scope :for_asset, ->(asset) { where(asset:) }
+  scope :filter_by, ->(params) {
+    scope = recent
+    scope = scope.where(status: params[:status]) if params[:status].present?
+    scope = scope.for_strategy(params[:strategy_key]) if params[:strategy_key].present?
+    scope = scope.where(asset_id: params[:asset_id]) if params[:asset_id].present?
+    scope
+  }
 
   before_validation :resolve_strategy_parameters, on: :create
 
@@ -63,6 +72,16 @@ class BacktestRun < ApplicationRecord
   end
 
   private
+    def set_defaults
+      self.interval ||= :one_day
+      self.strategy_key ||= "buy_hold"
+      self.from_time ||= 1.year.ago.beginning_of_day.utc
+      self.to_time ||= Time.current.utc
+      self.starting_capital ||= 10_000
+      self.fee_percentage ||= 0.05
+      self.slippage_percentage ||= 0.02
+    end
+
     def resolve_strategy_parameters
       return unless strategy_key.present? && STRATEGY_KEYS.include?(strategy_key)
 

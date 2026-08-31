@@ -1,45 +1,17 @@
 class BacktestRunsController < ApplicationController
-  def index
-    @runs = Current.user.backtest_runs.includes(:asset).recent
-    @runs = @runs.where(status: params[:status]) if params[:status].present?
-    @runs = @runs.for_strategy(params[:strategy_key]) if params[:strategy_key].present?
-    @runs = @runs.where(asset_id: params[:asset_id]) if params[:asset_id].present?
-    @runs = @runs.limit(50)
+  before_action :set_form_dependencies, only: %i[index new create]
 
-    @assets = Asset.all.order(:symbol)
-    @strategies = Backtest::Strategies.list
+  def index
+    @runs = Current.user.backtest_runs.includes(:asset).filter_by(params).limit(50)
   end
 
   def new
-    @assets = Asset.all.order(:symbol)
-    @strategies = Backtest::Strategies.list
-    @default_asset = @assets.first
-    @backtest_run = Current.user.backtest_runs.build(
-      asset: @default_asset,
-      interval: :one_day,
-      strategy_key: "buy_hold",
-      from_time: 1.year.ago.beginning_of_day.utc,
-      to_time: Time.current.utc,
-      starting_capital: 10_000,
-      fee_percentage: 0.05,
-      slippage_percentage: 0.02
-    )
+    @backtest_run = Current.user.backtest_runs.build(asset: @assets.first)
   end
 
   def create
-    @assets = Asset.all.order(:symbol)
-    @strategies = Backtest::Strategies.list
-
-    run_params = backtest_run_params
-    parameters_params = params.dig(:backtest_run, :parameters)
-    supplied_params = if parameters_params.present?
-      parameters_params.permit(*Backtest::Strategies.parameter_keys).to_h
-    else
-      {}
-    end
-
-    @backtest_run = Current.user.backtest_runs.build(run_params)
-    @backtest_run.resolved_parameters = supplied_params
+    @backtest_run = Current.user.backtest_runs.build(backtest_run_params)
+    @backtest_run.resolved_parameters = strategy_parameters
 
     if @backtest_run.save
       BacktestExecutionJob.perform_later(@backtest_run.id)
@@ -61,27 +33,26 @@ class BacktestRunsController < ApplicationController
   end
 
   private
+    def set_form_dependencies
+      @assets = Asset.alphabetical
+      @strategies = Backtest::Strategies.list
+    end
+
     def backtest_run_params
-      raw = params.require(:backtest_run).permit(
+      params.require(:backtest_run).permit(
         :asset_id, :interval, :strategy_key, :starting_capital,
         :fee_percentage, :slippage_percentage, :label,
         :from_time, :to_time
-      )
+      ).tap do |attributes|
+        attributes[:from_time] = Time.zone.parse(attributes[:from_time].to_s)&.beginning_of_day&.utc if attributes[:from_time].present?
+        attributes[:to_time] = Time.zone.parse(attributes[:to_time].to_s)&.end_of_day&.utc if attributes[:to_time].present?
+      end
+    end
 
-      if raw[:from_time].present?
-        begin
-          raw[:from_time] = Time.zone.parse(raw[:from_time].to_s).beginning_of_day.utc
-        rescue StandardError
-          nil
-        end
-      end
-      if raw[:to_time].present?
-        begin
-          raw[:to_time] = Time.zone.parse(raw[:to_time].to_s).end_of_day.utc
-        rescue StandardError
-          nil
-        end
-      end
-      raw
+    def strategy_parameters
+      raw = params.dig(:backtest_run, :parameters)
+      return {} if raw.blank?
+
+      raw.permit(*Backtest::Strategies.parameter_keys).to_h
     end
 end
