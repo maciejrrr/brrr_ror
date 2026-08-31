@@ -35,35 +35,36 @@ module Backtest
       output = Array.new(values.length)
       return output if values.length <= period
 
-      gains = 0.0
-      losses = 0.0
-      (1..period).each do |index|
-        difference = values[index] - values[index - 1]
-        difference >= 0 ? gains += difference : losses -= difference
-      end
-      average_gain = gains / period
-      average_loss = losses / period
-      output[period] = rsi_value(average_gain, average_loss)
-
-      (period + 1...values.length).each do |index|
-        difference = values[index] - values[index - 1]
-        average_gain = (average_gain * (period - 1) + [ difference, 0 ].max) / period
-        average_loss = (average_loss * (period - 1) + [ -difference, 0 ].max) / period
-        output[index] = rsi_value(average_gain, average_loss)
-      end
+      avg_gain, avg_loss = initial_rsi_gains_losses(values, period)
+      output[period] = rsi_value(avg_gain, avg_loss)
+      populate_smoothed_rsi(values, period, avg_gain, avg_loss, output)
       output
     end
 
+    def initial_rsi_gains_losses(values, period)
+      gains = 0.0
+      losses = 0.0
+      (1..period).each do |index|
+        diff = values[index] - values[index - 1]
+        diff >= 0 ? gains += diff : losses -= diff
+      end
+      [ gains / period, losses / period ]
+    end
+    private_class_method :initial_rsi_gains_losses
+
+    def populate_smoothed_rsi(values, period, avg_gain, avg_loss, output)
+      (period + 1...values.length).each do |index|
+        diff = values[index] - values[index - 1]
+        avg_gain = (avg_gain * (period - 1) + [ diff, 0 ].max) / period
+        avg_loss = (avg_loss * (period - 1) + [ -diff, 0 ].max) / period
+        output[index] = rsi_value(avg_gain, avg_loss)
+      end
+    end
+    private_class_method :populate_smoothed_rsi
+
     def atr(candles, period = 14)
       assert_period(period)
-      ranges = candles.each_with_index.map do |candle, index|
-        next candle.high - candle.low if index.zero?
-
-        previous_close = candles[index - 1].close
-        [ candle.high - candle.low, (candle.high - previous_close).abs,
-          (candle.low - previous_close).abs ].max
-      end
-
+      ranges = compute_true_ranges(candles)
       output = Array.new(candles.length)
       previous = nil
       sum = 0.0
@@ -79,6 +80,16 @@ module Backtest
       output
     end
 
+    def compute_true_ranges(candles)
+      candles.each_with_index.map do |candle, index|
+        next candle.high - candle.low if index.zero?
+
+        prev_close = candles[index - 1].close
+        [ candle.high - candle.low, (candle.high - prev_close).abs, (candle.low - prev_close).abs ].max
+      end
+    end
+    private_class_method :compute_true_ranges
+
     def rolling_max(values, period)
       rolling_extreme(values, period) { |candidate, incumbent| candidate >= incumbent }
     end
@@ -92,16 +103,21 @@ module Backtest
       raise ArgumentError, "Volatility needs a period of at least 2" if period < 2
       raise ArgumentError, "bars_per_year must be positive" unless bars_per_year.to_f.positive?
 
-      returns = values.each_with_index.map { |value, index| index.zero? ? 0.0 : value / values[index - 1] - 1 }
+      returns = values.each_with_index.map { |v, idx| idx.zero? ? 0.0 : v / values[idx - 1] - 1 }
       output = Array.new(values.length)
-      (period...values.length).each do |index|
-        window = returns[(index - period + 1)..index]
-        mean = window.sum / window.length
-        variance = window.sum { |value| (value - mean)**2 } / (window.length - 1)
-        output[index] = Math.sqrt(variance) * Math.sqrt(bars_per_year) * 100
+      (period...values.length).each do |idx|
+        window = returns[(idx - period + 1)..idx]
+        output[idx] = window_volatility(window, bars_per_year)
       end
       output
     end
+
+    def window_volatility(window, bars_per_year)
+      mean = window.sum / window.length
+      variance = window.sum { |value| (value - mean)**2 } / (window.length - 1)
+      Math.sqrt(variance) * Math.sqrt(bars_per_year) * 100
+    end
+    private_class_method :window_volatility
 
     def down_streak(values)
       output = Array.new(values.length, 0)

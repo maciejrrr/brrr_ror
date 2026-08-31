@@ -45,6 +45,9 @@ class BacktestRunsController < ApplicationController
     def set_form_dependencies
       @assets = Asset.alphabetical
       @strategies = Backtest::Strategies.list
+      @asset_date_bounds = PriceBar.group(:asset_id).pluck(:asset_id, Arel.sql("MIN(open_time)"), Arel.sql("MAX(open_time)")).to_h do |id, min_t, max_t|
+        [ id, { min: min_t&.strftime("%Y-%m-%d"), max: [ max_t, Time.current.utc ].compact.min&.strftime("%Y-%m-%d") } ]
+      end
     end
 
     def backtest_run_params

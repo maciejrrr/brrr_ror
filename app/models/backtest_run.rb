@@ -23,7 +23,7 @@ class BacktestRun < ApplicationRecord
 
   belongs_to :user
   belongs_to :asset
-  has_many :backtest_trades, dependent: :destroy
+  has_many :backtest_trades, dependent: :delete_all
 
   validates :strategy_key, inclusion: { in: STRATEGY_KEYS }
   validates :from_time, :to_time, presence: true

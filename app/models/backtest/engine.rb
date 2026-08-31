@@ -37,9 +37,12 @@ module Backtest
 
     private
       def fee_rate
-        fee = @costs[:fee_percentage] || @costs["fee_percentage"] || @costs[:fee_pct] || @costs["fee_pct"] || 0.0
-        slippage = @costs[:slippage_percentage] || @costs["slippage_percentage"] || @costs[:slippage_pct] || @costs["slippage_pct"] || 0.0
-        (fee.to_f + slippage.to_f) / 100.0
+        (cost_value(:fee_percentage, :fee_pct) + cost_value(:slippage_percentage, :slippage_pct)) / 100.0
+      end
+
+      def cost_value(primary_key, alias_key)
+        val = @costs[primary_key] || @costs[primary_key.to_s] || @costs[alias_key] || @costs[alias_key.to_s] || 0.0
+        val.to_f
       end
 
       def simulate_timeline(rate)
@@ -80,6 +83,10 @@ module Backtest
 
         state[:cash] -= notional * (1 + rate)
         state[:units] += notional / fill_price
+        track_buy_trade(state, notional, fill_price, rate, index)
+      end
+
+      def track_buy_trade(state, notional, fill_price, rate, index)
         state[:open_trade] ||= {
           entry_time: @candles[index + 1].open_time,
           entry_price: fill_price,
@@ -132,19 +139,34 @@ module Backtest
       end
 
       def validate_input
+        validate_shapes_and_capital
+        validate_costs
+        validate_candle_series
+      end
+
+      def validate_shapes_and_capital
         raise ArgumentError, "weights length must match candles length" unless @weights.length == @candles.length
         raise ArgumentError, "A backtest needs at least 2 candles" if @candles.length < 2
         raise ArgumentError, "starting_capital must be positive and finite" unless @starting_capital.positive? && @starting_capital.finite?
         raise ArgumentError, "bars_per_year must be positive and finite" unless @bars_per_year.positive? && @bars_per_year.finite?
-        fee = (@costs[:fee_percentage] || @costs["fee_percentage"] || @costs[:fee_pct] || @costs["fee_pct"] || 0.0).to_f
-        slippage = (@costs[:slippage_percentage] || @costs["slippage_percentage"] || @costs[:slippage_pct] || @costs["slippage_pct"] || 0.0).to_f
-        raise ArgumentError, "costs must be finite and non-negative" unless fee.finite? && slippage.finite? && fee >= 0 && slippage >= 0 && fee + slippage < 100
+      end
 
+      def validate_costs
+        fee = cost_value(:fee_percentage, :fee_pct)
+        slippage = cost_value(:slippage_percentage, :slippage_pct)
+        valid = fee.finite? && slippage.finite? && fee >= 0 && slippage >= 0 && fee + slippage < 100
+        raise ArgumentError, "costs must be finite and non-negative" unless valid
+      end
+
+      def validate_candle_series
         @candles.each_cons(2) do |previous, current|
           raise ArgumentError, "candles must be strictly increasing" unless current.open_time > previous.open_time
         end
         @candles.each do |candle|
-          %i[ open high low close ].each { |field| raise ArgumentError, "prices must be positive and finite" unless price(candle, field).positive? && price(candle, field).finite? }
+          %i[ open high low close ].each do |field|
+            val = price(candle, field)
+            raise ArgumentError, "prices must be positive and finite" unless val.positive? && val.finite?
+          end
         end
       end
 

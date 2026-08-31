@@ -24,23 +24,31 @@ module Backtest
 
       definition.defaults.merge(supplied_hash.stringify_keys).tap do |params|
         params.each do |name, value|
-          if value.is_a?(String) && value.strip =~ /\A[+-]?\d+(?:\.\d+)?\z/
-            value = value.include?(".") ? value.to_f : value.to_i
-            params[name] = value
-          end
-          is_period = name.to_s.end_with?("_period", "_bars") || name.to_s == "period"
-          if is_period
-            unless value.is_a?(Integer) && value.positive?
-              raise InvalidStrategyParameters, "Parameter #{name.inspect} must be a positive integer"
-            end
-          else
-            unless value.is_a?(Numeric) && value.finite? && value >= 0
-              raise InvalidStrategyParameters, "Parameter #{name.inspect} must be a non-negative number"
-            end
-          end
+          params[name] = parse_and_validate_param(name, value)
         end
       end
     end
+
+    def parse_and_validate_param(name, raw_value)
+      value = parse_numeric_value(raw_value)
+      is_period = name.to_s.end_with?("_period", "_bars") || name.to_s == "period"
+      if is_period
+        raise InvalidStrategyParameters, "Parameter #{name.inspect} must be a positive integer" unless value.is_a?(Integer) && value.positive?
+      else
+        raise InvalidStrategyParameters, "Parameter #{name.inspect} must be a non-negative number" unless value.is_a?(Numeric) && value.finite? && value >= 0
+      end
+      value
+    end
+    private_class_method :parse_and_validate_param
+
+    def parse_numeric_value(value)
+      if value.is_a?(String) && value.strip =~ /\A[+-]?\d+(?:\.\d+)?\z/
+        value.include?(".") ? value.to_f : value.to_i
+      else
+        value
+      end
+    end
+    private_class_method :parse_numeric_value
 
     def build_weights(key:, candles:, params: {}, bars_per_year:)
       definition = fetch(key)
@@ -74,16 +82,22 @@ module Backtest
       lows = Indicators.rolling_min(candles.map { |c| c.low.to_f }, params["exit_period"].to_i)
       stateful_weights(candles) do |index, in_position|
         next in_position if index.zero?
-        if !in_position && highs[index - 1] && candles[index].close.to_f >= highs[index - 1]
-          true
-        elsif in_position && lows[index - 1] && candles[index].close.to_f <= lows[index - 1]
-          false
-        else
-          in_position
-        end
+
+        donchian_step(candles[index], in_position, highs[index - 1], lows[index - 1])
       end
     end
     private_class_method :donchian
+
+    def donchian_step(candle, in_position, previous_high, previous_low)
+      if !in_position && previous_high && candle.close.to_f >= previous_high
+        true
+      elsif in_position && previous_low && candle.close.to_f <= previous_low
+        false
+      else
+        in_position
+      end
+    end
+    private_class_method :donchian_step
 
     def sma_trend(candles, params, _bars)
       average = Indicators.sma(closes(candles), params["period"].to_i)
@@ -111,16 +125,22 @@ module Backtest
       ranges = Indicators.atr(candles, params["atr_period"].to_i)
       stateful_weights(candles) do |index, in_position|
         next in_position unless average[index] && ranges[index]
-        if !in_position && candles[index].close.to_f < average[index] - params["atr_mult"] * ranges[index]
-          true
-        elsif in_position && candles[index].close.to_f >= average[index]
-          false
-        else
-          in_position
-        end
+
+        mean_reversion_step(candles[index], in_position, average[index], ranges[index], params["atr_mult"])
       end
     end
     private_class_method :mean_reversion
+
+    def mean_reversion_step(candle, in_position, average, range, mult)
+      if !in_position && candle.close.to_f < average - mult * range
+        true
+      elsif in_position && candle.close.to_f >= average
+        false
+      else
+        in_position
+      end
+    end
+    private_class_method :mean_reversion_step
 
     def volatility_target(candles, params, bars_per_year)
       volatility = Indicators.realized_volatility(values: closes(candles), period: params["period"].to_i, bars_per_year: bars_per_year)
@@ -129,29 +149,58 @@ module Backtest
     private_class_method :volatility_target
 
     def wyckoff_accumulation(candles, params, _bars)
-      highs = Indicators.rolling_max(candles.map { |c| c.high.to_f }, params["range_period"].to_i)
-      lows = Indicators.rolling_min(candles.map { |c| c.low.to_f }, params["range_period"].to_i)
-      average_volume = Indicators.sma(candles.map { |c| c.volume.to_f }, params["vol_avg_period"].to_i)
-      exit_lows = Indicators.rolling_min(candles.map { |c| c.low.to_f }, params["exit_period"].to_i)
-      spring_index = -1
+      series = wyckoff_indicators(candles, params)
+      spring_idx = -1
       in_position = false
-      candles.each_index.map do |index|
-        if index.positive? && highs[index - 1] && lows[index - 1] && average_volume[index - 1]
-          width = (highs[index - 1] - lows[index - 1]) / lows[index - 1] * 100
-          if width <= params["range_max_width_pct"] && candles[index].low.to_f < lows[index - 1] && candles[index].close.to_f > lows[index - 1] && candles[index].volume.to_f >= average_volume[index - 1] * params["spring_vol_mult"]
-            spring_index = index
-          end
-          if !in_position && spring_index >= 0 && index - spring_index <= params["sos_window_bars"] && candles[index].close.to_f > highs[index - 1] && candles[index].volume.to_f >= average_volume[index - 1] * params["sos_vol_mult"]
-            in_position = true
-            spring_index = -1
-          elsif in_position && exit_lows[index - 1] && candles[index].close.to_f < exit_lows[index - 1]
-            in_position = false
-          end
-        end
+
+      candles.each_index.map do |idx|
+        in_position, spring_idx = wyckoff_step(candles[idx], idx, series, params, in_position, spring_idx)
         in_position ? 1.0 : 0.0
       end
     end
     private_class_method :wyckoff_accumulation
+
+    def wyckoff_indicators(candles, params)
+      {
+        highs: Indicators.rolling_max(candles.map { |c| c.high.to_f }, params["range_period"].to_i),
+        lows: Indicators.rolling_min(candles.map { |c| c.low.to_f }, params["range_period"].to_i),
+        vol: Indicators.sma(candles.map { |c| c.volume.to_f }, params["vol_avg_period"].to_i),
+        exit_lows: Indicators.rolling_min(candles.map { |c| c.low.to_f }, params["exit_period"].to_i)
+      }
+    end
+    private_class_method :wyckoff_indicators
+
+    def wyckoff_step(candle, idx, series, params, in_pos, spring_idx)
+      return [ in_pos, spring_idx ] unless idx.positive? && series[:highs][idx - 1] && series[:lows][idx - 1] && series[:vol][idx - 1]
+
+      spring_idx = idx if spring_condition?(candle, series, params, idx - 1)
+      in_pos, spring_idx = evaluate_wyckoff_position(candle, idx, series, params, in_pos, spring_idx)
+      [ in_pos, spring_idx ]
+    end
+    private_class_method :wyckoff_step
+
+    def spring_condition?(candle, series, params, prev_idx)
+      h = series[:highs][prev_idx]
+      l = series[:lows][prev_idx]
+      width = (h - l) / l * 100
+      width <= params["range_max_width_pct"] &&
+        candle.low.to_f < l && candle.close.to_f > l &&
+        candle.volume.to_f >= series[:vol][prev_idx] * params["spring_vol_mult"]
+    end
+    private_class_method :spring_condition?
+
+    def evaluate_wyckoff_position(candle, idx, series, params, in_pos, spring_idx)
+      prev_idx = idx - 1
+      if !in_pos && spring_idx >= 0 && idx - spring_idx <= params["sos_window_bars"] &&
+         candle.close.to_f > series[:highs][prev_idx] && candle.volume.to_f >= series[:vol][prev_idx] * params["sos_vol_mult"]
+        [ true, -1 ]
+      elsif in_pos && series[:exit_lows][prev_idx] && candle.close.to_f < series[:exit_lows][prev_idx]
+        [ false, spring_idx ]
+      else
+        [ in_pos, spring_idx ]
+      end
+    end
+    private_class_method :evaluate_wyckoff_position
 
     def stateful_weights(candles)
       in_position = false
