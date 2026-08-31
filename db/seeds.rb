@@ -83,21 +83,20 @@ def generate_deterministic_bars(asset, interval, start_time, count, base_price, 
   puts "  Created/updated #{rows.length} #{interval} bars for #{asset.symbol}"
 end
 
-# SPY: Daily bars for 2024
-spy_start = Time.utc(2024, 1, 1, 0, 0, 0)
-generate_deterministic_bars(spy, :one_day, spy_start, 366, 470.0, 0.012, 0.0006)
+# SPY: Daily bars for the last 730 days (2 years)
+daily_count = 730
+start_daily = (daily_count - 1).days.ago.beginning_of_day.utc
+generate_deterministic_bars(spy, :one_day, start_daily, daily_count, 420.0, 0.012, 0.0004)
 
-# BTC: Daily bars for 2024 and hourly bars for the last 30 days
-btc_start_day = Time.utc(2024, 1, 1, 0, 0, 0)
-generate_deterministic_bars(btc, :one_day, btc_start_day, 366, 42000.0, 0.025, 0.0012)
-btc_start_hour = Time.utc(2024, 12, 1, 0, 0, 0)
-generate_deterministic_bars(btc, :one_hour, btc_start_hour, 744, 85000.0, 0.008, 0.0003)
+# BTC: Daily bars for 730 days and hourly bars for the last 720 hours (30 days)
+generate_deterministic_bars(btc, :one_day, start_daily, daily_count, 28_000.0, 0.025, 0.001)
+hourly_count = 720
+start_hourly = (hourly_count - 1).hours.ago.beginning_of_hour.utc
+generate_deterministic_bars(btc, :one_hour, start_hourly, hourly_count, 85_000.0, 0.008, 0.0003)
 
-# ETH: Daily bars for 2024 and hourly bars for the last 30 days
-eth_start_day = Time.utc(2024, 1, 1, 0, 0, 0)
-generate_deterministic_bars(eth, :one_day, eth_start_day, 366, 2200.0, 0.03, 0.001)
-eth_start_hour = Time.utc(2024, 12, 1, 0, 0, 0)
-generate_deterministic_bars(eth, :one_hour, eth_start_hour, 744, 3400.0, 0.01, 0.0002)
+# ETH: Daily bars for 730 days and hourly bars for the last 720 hours (30 days)
+generate_deterministic_bars(eth, :one_day, start_daily, daily_count, 1800.0, 0.03, 0.0008)
+generate_deterministic_bars(eth, :one_hour, start_hourly, hourly_count, 3200.0, 0.01, 0.0002)
 
 puts "== Seeding demo backtest runs =="
 # 1. SPY Buy & Hold (completed)
@@ -106,11 +105,11 @@ run_spy_bh = BacktestRun.find_or_initialize_by(
   asset: spy,
   strategy_key: "buy_hold",
   interval: :one_day,
-  from_time: Time.utc(2024, 1, 1, 0, 0, 0),
-  to_time: Time.utc(2024, 12, 31, 0, 0, 0)
+  from_time: start_daily,
+  to_time: Time.current.utc
 )
 run_spy_bh.assign_attributes(
-  label: "SPY 2024 Buy & Hold Benchmark",
+  label: "SPY 2-Year Buy & Hold Benchmark",
   starting_capital: 10_000.0,
   fee_percentage: 0.05,
   slippage_percentage: 0.02,
@@ -127,15 +126,15 @@ run_btc_donchian = BacktestRun.find_or_initialize_by(
   asset: btc,
   strategy_key: "donchian",
   interval: :one_day,
-  from_time: Time.utc(2024, 1, 1, 0, 0, 0),
-  to_time: Time.utc(2024, 12, 31, 0, 0, 0)
+  from_time: start_daily,
+  to_time: Time.current.utc
 )
 run_btc_donchian.assign_attributes(
-  label: "BTC 2024 Donchian Trend",
+  label: "BTC Donchian Trend Following",
+  starting_capital: 10_000.0,
+  fee_percentage: 0.05,
+  slippage_percentage: 0.02,
   resolved_parameters: { "entry_period" => 20, "exit_period" => 10 },
-  starting_capital: 25_000.0,
-  fee_percentage: 0.1,
-  slippage_percentage: 0.05,
   status: :queued,
   demo_data: true
 )
@@ -149,11 +148,11 @@ run_eth_sma = BacktestRun.find_or_initialize_by(
   asset: eth,
   strategy_key: "sma_trend",
   interval: :one_hour,
-  from_time: Time.utc(2024, 12, 1, 0, 0, 0),
-  to_time: Time.utc(2024, 12, 31, 0, 0, 0)
+  from_time: start_hourly,
+  to_time: Time.current.utc
 )
 run_eth_sma.assign_attributes(
-  label: "ETH Dec 2024 Hourly SMA Trend",
+  label: "ETH 30-Day Hourly SMA Trend",
   resolved_parameters: { "period" => 48, "band_pct" => 2 },
   starting_capital: 10_000.0,
   fee_percentage: 0.1,

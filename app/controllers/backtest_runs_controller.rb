@@ -7,6 +7,15 @@ class BacktestRunsController < ApplicationController
 
   def new
     @backtest_run = Current.user.backtest_runs.build(asset: @assets.first)
+    if @assets.first.present?
+      bars_scope = @assets.first.price_bars.one_day
+      earliest = bars_scope.chronological.pick(:open_time)
+      latest = bars_scope.latest_first.pick(:open_time)
+      if earliest && latest
+        @backtest_run.from_time = [ latest - 1.year, earliest ].max.beginning_of_day.utc
+        @backtest_run.to_time = latest.end_of_day.utc
+      end
+    end
   end
 
   def create
