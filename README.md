@@ -1,4 +1,4 @@
-# brrr
+# brrr 🖨️💵
 
 Market-data ingestion and quantitative strategy backtesting application. It imports historical OHLCV price candles, renders interactive charts, runs lookahead-free strategy simulations, and benchmarks performance against Buy & Hold.
 
@@ -32,6 +32,7 @@ Market-data ingestion and quantitative strategy backtesting application. It impo
 ### Setup
 
 1. **Clone the repository and install dependencies**:
+
    ```bash
    git clone git@github.com:maciejrrr/brrr_ror.git
    cd brrr_ror
@@ -39,16 +40,19 @@ Market-data ingestion and quantitative strategy backtesting application. It impo
    ```
 
 2. **Configure environment**:
+
    ```bash
    cp .env.example .env
    ```
 
 3. **Initialize database and offline demo data**:
+
    ```bash
    bin/rails db:prepare
    bin/rails db:seed
    ```
-   *The seed script runs completely offline and sets up demo assets (SPY, BTC, ETH) and sample backtests.*
+
+   _The seed script runs completely offline and sets up demo assets (SPY, BTC, ETH) and sample backtests._
 
 4. **Start the application**:
    ```bash
