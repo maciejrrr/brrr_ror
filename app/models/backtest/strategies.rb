@@ -8,19 +8,35 @@ module Backtest
       registry.values
     end
 
+    def parameter_keys
+      registry.values.flat_map { |definition| definition.defaults.keys }.uniq
+    end
+
     def fetch(key)
       registry.fetch(key.to_s) { raise UnknownStrategy, "Unknown strategy #{key.inspect}. Available: #{registry.keys.join(', ')}" }
     end
 
     def resolve(key, supplied = {})
       definition = fetch(key)
-      unknown = supplied.keys.map(&:to_s) - definition.defaults.keys
+      supplied_hash = supplied.respond_to?(:to_unsafe_h) ? supplied.to_unsafe_h : (supplied || {}).to_h
+      unknown = supplied_hash.keys.map(&:to_s) - definition.defaults.keys
       raise InvalidStrategyParameters, "Unknown parameter(s): #{unknown.join(', ')}" if unknown.any?
 
-      definition.defaults.merge(supplied.stringify_keys).tap do |params|
+      definition.defaults.merge(supplied_hash.stringify_keys).tap do |params|
         params.each do |name, value|
-          unless value.is_a?(Numeric) && value.finite? && value.positive?
-            raise InvalidStrategyParameters, "Parameter #{name.inspect} must be a positive number"
+          if value.is_a?(String) && value.strip =~ /\A[+-]?\d+(?:\.\d+)?\z/
+            value = value.include?(".") ? value.to_f : value.to_i
+            params[name] = value
+          end
+          is_period = name.to_s.end_with?("_period", "_bars") || name.to_s == "period"
+          if is_period
+            unless value.is_a?(Integer) && value.positive?
+              raise InvalidStrategyParameters, "Parameter #{name.inspect} must be a positive integer"
+            end
+          else
+            unless value.is_a?(Numeric) && value.finite? && value >= 0
+              raise InvalidStrategyParameters, "Parameter #{name.inspect} must be a non-negative number"
+            end
           end
         end
       end

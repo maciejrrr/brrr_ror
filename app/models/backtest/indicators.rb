@@ -119,6 +119,7 @@ module Backtest
     private_class_method :assert_period
 
     def rsi_value(average_gain, average_loss)
+      return 50.0 if average_gain.zero? && average_loss.zero?
       return 100.0 if average_loss.zero?
 
       100 - 100 / (1 + average_gain / average_loss)

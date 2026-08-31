@@ -21,7 +21,9 @@ module Backtest
 
     def run
       validate_input
-      fee_rate = (@costs.fetch(:fee_percentage, @costs[:fee_pct]) + @costs.fetch(:slippage_percentage, @costs[:slippage_pct])) / 100.0
+      fee = @costs[:fee_percentage] || @costs["fee_percentage"] || @costs[:fee_pct] || @costs["fee_pct"] || 0.0
+      slippage = @costs[:slippage_percentage] || @costs["slippage_percentage"] || @costs[:slippage_pct] || @costs["slippage_pct"] || 0.0
+      fee_rate = (fee.to_f + slippage.to_f) / 100.0
       cash = @starting_capital
       units = 0.0
       bars_in_market = 0
@@ -84,8 +86,8 @@ module Backtest
         raise ArgumentError, "A backtest needs at least 2 candles" if @candles.length < 2
         raise ArgumentError, "starting_capital must be positive and finite" unless @starting_capital.positive? && @starting_capital.finite?
         raise ArgumentError, "bars_per_year must be positive and finite" unless @bars_per_year.positive? && @bars_per_year.finite?
-        fee = @costs.fetch(:fee_percentage, @costs[:fee_pct]).to_f
-        slippage = @costs.fetch(:slippage_percentage, @costs[:slippage_pct]).to_f
+        fee = (@costs[:fee_percentage] || @costs["fee_percentage"] || @costs[:fee_pct] || @costs["fee_pct"] || 0.0).to_f
+        slippage = (@costs[:slippage_percentage] || @costs["slippage_percentage"] || @costs[:slippage_pct] || @costs["slippage_pct"] || 0.0).to_f
         raise ArgumentError, "costs must be finite and non-negative" unless fee.finite? && slippage.finite? && fee >= 0 && slippage >= 0 && fee + slippage < 100
 
         @candles.each_cons(2) do |previous, current|
@@ -109,26 +111,43 @@ module Backtest
 
       def build_trade(trade, exit_time:, exit_price:, exit_index:, liquidation_value:, open_position:)
         profit = trade[:returned_cash] + liquidation_value - trade[:invested_cash]
+        return_pct = if trade[:peak_capital].positive?
+          profit / trade[:peak_capital] * 100
+        else
+          0.0
+        end
         Trade.new(entry_time: trade[:entry_time], exit_time:, entry_price: trade[:entry_price], exit_price:,
-          return_percentage: trade[:peak_capital].positive? ? profit / trade[:peak_capital] * 100 : nil,
-          holding_bars: exit_index - trade[:entry_index], open_position:)
+          return_percentage: return_pct, holding_bars: exit_index - trade[:entry_index], open_position:)
       end
 
       def summarize(curve)
-        final_equity = curve.last[:value]
+        final_equity = [ curve.last[:value], 0.0 ].max
         years = (curve.length - 1) / @bars_per_year
         peak = -Float::INFINITY
         drawdown = 0.0
         curve.each do |point|
           peak = point[:value] if point[:value] > peak
-          drawdown = [ drawdown, (point[:value] - peak) / peak * 100 ].min
+          if peak.positive?
+            drawdown = [ drawdown, (point[:value] - peak) / peak * 100 ].min
+          else
+            drawdown = -100.0
+          end
         end
         returns = curve.each_cons(2).filter_map { |first, second| first[:value].positive? ? second[:value] / first[:value] - 1 : nil }
         mean = returns.empty? ? 0.0 : returns.sum / returns.length
         variance = returns.length > 1 ? returns.sum { |value| (value - mean)**2 } / (returns.length - 1) : 0.0
         standard_deviation = Math.sqrt(variance)
         sharpe = standard_deviation.positive? ? mean / standard_deviation * Math.sqrt(@bars_per_year) : 0.0
-        cagr = years.positive? ? (final_equity <= 0 ? -100.0 : ((final_equity / @starting_capital)**(1 / years) - 1) * 100) : 0.0
+        cagr = if years.positive?
+          if final_equity <= 0
+            -100.0
+          else
+            raw_cagr = ((final_equity / @starting_capital)**(1.0 / years) - 1.0) * 100.0
+            raw_cagr.finite? ? raw_cagr : (final_equity > @starting_capital ? 100_000.0 : -100.0)
+          end
+        else
+          0.0
+        end
         { final_equity:, total_return_percentage: (final_equity - @starting_capital) / @starting_capital * 100,
           cagr_percentage: cagr, maximum_drawdown_percentage: drawdown, sharpe_ratio: sharpe }
       end

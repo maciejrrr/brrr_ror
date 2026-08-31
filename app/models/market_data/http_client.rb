@@ -88,7 +88,15 @@ module MarketData
         return if value.blank?
 
         seconds = Integer(value, exception: false)
-        seconds if seconds && seconds >= 0
+        return seconds if seconds && seconds >= 0
+
+        begin
+          parsed_time = Time.httpdate(value)
+          diff = (parsed_time - Time.current).ceil
+          [ diff, 0 ].max
+        rescue ArgumentError
+          nil
+        end
       end
 
       class NetworkError < MarketData::Error; end

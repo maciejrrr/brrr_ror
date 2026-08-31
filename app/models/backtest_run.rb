@@ -33,7 +33,7 @@ class BacktestRun < ApplicationRecord
   validates :bar_count, :trade_count,
     numericality: { only_integer: true, greater_than_or_equal_to: 0 }, allow_nil: true
   validates :final_equity,
-    numericality: { greater_than: 0 }, allow_nil: true
+    numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validates :total_return_percentage, :cagr_percentage, :benchmark_cagr_percentage,
     numericality: { greater_than_or_equal_to: -100 }, allow_nil: true
   validates :maximum_drawdown_percentage, :benchmark_maximum_drawdown_percentage,
@@ -54,12 +54,22 @@ class BacktestRun < ApplicationRecord
 
   scope :recent, -> { order(created_at: :desc) }
   scope :for_strategy, ->(strategy_key) { where(strategy_key:) }
+  scope :for_asset, ->(asset) { where(asset:) }
+
+  before_validation :resolve_strategy_parameters, on: :create
 
   def display_name
     label.presence || "#{asset.symbol} #{strategy_key.humanize}"
   end
 
   private
+    def resolve_strategy_parameters
+      return unless strategy_key.present? && STRATEGY_KEYS.include?(strategy_key)
+
+      self.resolved_parameters = Backtest::Strategies.resolve(strategy_key, resolved_parameters || {})
+    rescue Backtest::InvalidStrategyParameters => error
+      errors.add(:resolved_parameters, error.message)
+    end
     def time_range_is_valid
       return if from_time.blank? || to_time.blank? || from_time <= to_time
 
