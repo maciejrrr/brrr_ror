@@ -52,9 +52,9 @@ group :development do
 end
 
 group :test do
-  # Use system testing [https://guides.rubyonrails.org/testing.html#system-testing]
+  # Use system testing with Cuprite (CDP headless browser) [https://github.com/rubycdp/cuprite]
   gem "capybara"
-  gem "selenium-webdriver"
+  gem "cuprite", "~> 0.15"
   gem "webmock"
   gem "simplecov", require: false
 end
