@@ -15,13 +15,22 @@ class Backtest::IndicatorsTest < ActiveSupport::TestCase
     assert_in_delta 66.6667, values[3], 0.001
   end
 
+  test "RSI handles flat series and zero loss series" do
+    assert_equal [ nil, nil, nil, 50.0, 50.0 ], rsi([ 10, 10, 10, 10, 10 ], 3)
+    assert_equal [ nil, nil, nil, 100.0, 100.0 ], rsi([ 10, 20, 30, 40, 50 ], 3)
+    assert_equal [ nil, nil ], rsi([ 10, 20 ], 5)
+  end
+
   test "calculates ATR from true ranges including gaps" do
     candles = [
       Struct.new(:high, :low, :close).new(10, 10, 10),
-      Struct.new(:high, :low, :close).new(20, 19, 20)
+      Struct.new(:high, :low, :close).new(20, 19, 20),
+      Struct.new(:high, :low, :close).new(25, 20, 22)
     ]
 
-    assert_in_delta 5.0, atr(candles, 2)[1], 0.0001
+    result = atr(candles, 2)
+    assert_in_delta 5.0, result[1], 0.0001
+    assert result[2].present?
   end
 
   test "calculates rolling extremes and down streaks" do
@@ -30,7 +39,18 @@ class Backtest::IndicatorsTest < ActiveSupport::TestCase
     assert_equal [ 0, 1, 2, 0, 1, 2 ], down_streak([ 5, 4, 3, 4, 3, 2 ])
   end
 
-  test "rejects a one-bar volatility window" do
+  test "calculates realized volatility" do
+    values = [ 100, 105, 102, 108, 104, 110 ]
+    result = realized_volatility(values:, period: 3, bars_per_year: 365)
+    assert_equal 6, result.length
+    assert result[3].present?
+    assert result[3].positive?
+  end
+
+  test "rejects invalid indicator periods" do
+    assert_raises(ArgumentError) { sma([ 1, 2, 3 ], 0) }
+    assert_raises(ArgumentError) { sma([ 1, 2, 3 ], "3") }
     assert_raises(ArgumentError) { realized_volatility(values: [ 1, 2 ], period: 1, bars_per_year: 365) }
+    assert_raises(ArgumentError) { realized_volatility(values: [ 1, 2, 3 ], period: 2, bars_per_year: 0) }
   end
 end

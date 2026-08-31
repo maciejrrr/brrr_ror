@@ -18,6 +18,44 @@ class MarketData::BinanceTest < ActiveSupport::TestCase
     assert_equal %w[ one_hour one_day ], provider.supported_intervals
   end
 
+  test "raises UnsupportedInterval on invalid intervals" do
+    assert_raises(MarketData::UnsupportedInterval) do
+      provider.fetch(symbol: "BTCUSDT", interval: "fifteen_minutes", from: Time.utc(2024, 1, 1), to: Time.utc(2024, 1, 2), as_of: Time.utc(2024, 1, 3))
+    end
+  end
+
+  test "handles empty response gracefully" do
+    url = "https://api.binance.com/api/v3/klines"
+    stub_request(:get, %r{#{Regexp.escape(url)}}).to_return(body: "[]")
+
+    bars = provider.fetch(symbol: "BTCUSDT", interval: "one_day", from: Time.utc(2024, 1, 1), to: Time.utc(2024, 1, 2), as_of: Time.utc(2024, 1, 3))
+    assert_empty bars
+  end
+
+  test "paginates across multiple pages" do
+    url = "https://api.binance.com/api/v3/klines"
+    open_ms1 = Time.utc(2024, 1, 1).to_i * 1_000
+    open_ms2 = Time.utc(2024, 1, 2).to_i * 1_000
+
+    page1 = Array.new(1000) { |i| [ open_ms1 + i * 86_400_000, "100", "110", "90", "105", "1000" ] }
+    page2 = [ [ open_ms1 + 1000 * 86_400_000, "105", "115", "95", "110", "1000" ] ]
+
+    stub_request(:get, %r{#{Regexp.escape(url)}}).to_return(
+      { body: JSON.generate(page1) },
+      { body: JSON.generate(page2) }
+    )
+
+    bars = provider.fetch(
+      symbol: "BTCUSDT",
+      interval: "one_day",
+      from: Time.utc(2024, 1, 1),
+      to: Time.utc(2030, 1, 1),
+      as_of: Time.utc(2035, 1, 1)
+    )
+
+    assert_equal 1001, bars.length
+  end
+
   private
     def provider
       MarketData::Binance.new(

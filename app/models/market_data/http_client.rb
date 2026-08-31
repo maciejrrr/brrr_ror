@@ -23,7 +23,11 @@ module MarketData
       attempts = 0
       loop do
         response = request(uri)
-        return JSON.parse(response.body)
+        begin
+          return JSON.parse(response.body)
+        rescue JSON::ParserError => error
+          raise MarketData::Error, "Invalid JSON from provider: #{error.message}"
+        end
       rescue MarketData::ProviderUnavailable
         raise
       rescue StandardError => error
