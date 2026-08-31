@@ -141,8 +141,9 @@ bin/bundler-audit
 ```
 
 `bin/dev` runs Rails, the Tailwind watcher, and Sidekiq. PostgreSQL and Redis
-must already be running. Development and test databases are `brrr_development`
-and `brrr_test`; never point destructive test setup at a non-test database.
+must already be running. Development and test databases are
+`brrr_ror_development` and `brrr_ror_test`; never point destructive test setup
+at a non-test database or at the NestJS project's `brrr_test` database.
 
 Unit tests must not contact external providers or require Redis. Stub HTTP
 calls with WebMock and use the Active Job test adapter where appropriate.
