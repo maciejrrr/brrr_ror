@@ -1,17 +1,22 @@
-<div class="mx-auto md:w-2/3 w-full">
-  <% if alert = flash[:alert] %>
-    <p class="py-2 px-3 bg-red-50 mb-5 text-red-500 font-medium rounded-lg inline-block" id="alert"><%= alert %></p>
-  <% end %>
+<% content_for :title, "Forgot Password · Brrr" %>
 
-  <h1 class="font-bold text-4xl">Forgot your password?</h1>
+<div class="max-w-md mx-auto mt-12 p-8 rounded-2xl border border-zinc-800 bg-zinc-900/60 shadow-xl space-y-6">
+  <div>
+    <h1 class="text-xl font-bold text-white">Reset your password</h1>
+    <p class="mt-1 text-xs text-zinc-400">
+      Enter your email address to receive password reset instructions.
+    </p>
+  </div>
 
-  <%= form_with url: passwords_path, class: "contents" do |form| %>
-    <div class="my-5">
-      <%= form.email_field :email_address, required: true, autofocus: true, autocomplete: "username", placeholder: "Enter your email address", value: params[:email_address], class: "block shadow-sm rounded-md border border-gray-400 focus:outline-solid focus:outline-blue-600 px-3 py-2 mt-2 w-full" %>
+  <%= form_with url: passwords_path, class: "space-y-4" do |form| %>
+    <div>
+      <%= form.label :email_address, "Email address", class: "block text-xs font-medium text-zinc-300 mb-1" %>
+      <%= form.email_field :email_address, required: true, autofocus: true, autocomplete: "username", placeholder: "demo@example.com", value: params[:email_address], class: "w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-emerald-500 focus:outline-none" %>
     </div>
 
-    <div class="inline">
-      <%= form.submit "Email reset instructions", class: "w-full sm:w-auto text-center rounded-lg px-3.5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white inline-block font-medium cursor-pointer" %>
+    <div class="pt-2 flex items-center justify-between">
+      <%= link_to "Back to sign in", new_session_path, class: "text-xs text-zinc-400 hover:text-zinc-200 transition" %>
+      <%= form.submit "Send reset email", class: "cursor-pointer py-2 px-4 text-sm font-semibold rounded-lg bg-emerald-500 text-zinc-950 hover:bg-emerald-400 transition shadow-sm" %>
     </div>
   <% end %>
 </div>

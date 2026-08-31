@@ -1,0 +1,10 @@
+<% if flash.any? %>
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4 space-y-2">
+    <% flash.each do |type, message| %>
+      <% is_alert = type.to_s == "alert" || type.to_s == "error" %>
+      <div class="p-3.5 rounded-lg border text-sm flex items-center justify-between <%= is_alert ? 'bg-rose-950/70 border-rose-800 text-rose-300' : 'bg-emerald-950/70 border-emerald-800 text-emerald-300' %>">
+        <span><%= message %></span>
+      </div>
+    <% end %>
+  </div>
+<% end %>

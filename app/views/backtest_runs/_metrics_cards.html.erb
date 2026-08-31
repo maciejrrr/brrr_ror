@@ -1,0 +1,79 @@
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+  <!-- Final Equity -->
+  <div class="p-4 rounded-xl border border-zinc-800 bg-zinc-900/60">
+    <div class="text-xs font-medium uppercase tracking-wider text-zinc-400">Final Equity</div>
+    <div class="mt-2 text-2xl font-bold font-mono text-white">
+      <%= format_currency(run.final_equity) %>
+    </div>
+    <div class="mt-1 text-xs font-mono <%= return_color_class(run.total_return_percentage) %>">
+      <%= format_percentage(run.total_return_percentage) %> total
+    </div>
+  </div>
+
+  <!-- CAGR vs Benchmark -->
+  <div class="p-4 rounded-xl border border-zinc-800 bg-zinc-900/60">
+    <div class="text-xs font-medium uppercase tracking-wider text-zinc-400">CAGR vs Buy & Hold</div>
+    <div class="mt-2 text-2xl font-bold font-mono text-emerald-400">
+      <%= format_percentage(run.cagr_percentage) %>
+    </div>
+    <div class="mt-1 text-xs font-mono text-zinc-500">
+      Benchmark: <span class="text-zinc-300"><%= format_percentage(run.benchmark_cagr_percentage) %></span>
+    </div>
+  </div>
+
+  <!-- Max Drawdown vs Benchmark -->
+  <div class="p-4 rounded-xl border border-zinc-800 bg-zinc-900/60">
+    <div class="text-xs font-medium uppercase tracking-wider text-zinc-400">Max Drawdown</div>
+    <div class="mt-2 text-2xl font-bold font-mono text-rose-400">
+      <%= format_percentage(run.maximum_drawdown_percentage) %>
+    </div>
+    <div class="mt-1 text-xs font-mono text-zinc-500">
+      Benchmark: <span class="text-zinc-300"><%= format_percentage(run.benchmark_maximum_drawdown_percentage) %></span>
+    </div>
+  </div>
+
+  <!-- Sharpe Ratio -->
+  <div class="p-4 rounded-xl border border-zinc-800 bg-zinc-900/60">
+    <div class="text-xs font-medium uppercase tracking-wider text-zinc-400">Sharpe Ratio</div>
+    <div class="mt-2 text-2xl font-bold font-mono text-zinc-100">
+      <%= format_ratio(run.sharpe_ratio) %>
+    </div>
+    <div class="mt-1 text-xs text-zinc-500">Zero risk-free rate annualized</div>
+  </div>
+
+  <!-- Exposure -->
+  <div class="p-4 rounded-xl border border-zinc-800 bg-zinc-900/60">
+    <div class="text-xs font-medium uppercase tracking-wider text-zinc-400">Market Exposure</div>
+    <div class="mt-2 text-xl font-bold font-mono text-zinc-200">
+      <%= format_percentage(run.exposure_percentage) %>
+    </div>
+    <div class="mt-1 text-xs text-zinc-500">Time in active position</div>
+  </div>
+
+  <!-- Win Rate -->
+  <div class="p-4 rounded-xl border border-zinc-800 bg-zinc-900/60">
+    <div class="text-xs font-medium uppercase tracking-wider text-zinc-400">Realized Win Rate</div>
+    <div class="mt-2 text-xl font-bold font-mono text-zinc-200">
+      <%= run.win_rate_percentage ? "#{run.win_rate_percentage.round(1)}%" : "—" %>
+    </div>
+    <div class="mt-1 text-xs text-zinc-500">Realized closed trades only</div>
+  </div>
+
+  <!-- Trades Count -->
+  <div class="p-4 rounded-xl border border-zinc-800 bg-zinc-900/60">
+    <div class="text-xs font-medium uppercase tracking-wider text-zinc-400">Total Trades</div>
+    <div class="mt-2 text-xl font-bold font-mono text-zinc-200">
+      <%= run.trade_count %>
+    </div>
+    <div class="mt-1 text-xs text-zinc-500">Round trips executed</div>
+  </div>
+
+  <!-- Bars Window -->
+  <div class="p-4 rounded-xl border border-zinc-800 bg-zinc-900/60">
+    <div class="text-xs font-medium uppercase tracking-wider text-zinc-400">Candles Simulated</div>
+    <div class="mt-2 text-xl font-bold font-mono text-zinc-200">
+      <%= number_with_delimiter(run.bar_count) %>
+    </div>
+    <div class="mt-1 text-xs text-zinc-500"><%= run.interval.humanize %> bars</div>
+  </div>
+</div>

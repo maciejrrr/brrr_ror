@@ -1,0 +1,38 @@
+<header class="border-b border-zinc-800 bg-zinc-900/80 backdrop-blur sticky top-0 z-50">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+    <div class="flex items-center gap-8">
+      <%= link_to root_path, class: "flex items-center gap-2 text-emerald-400 font-mono font-bold text-xl tracking-tight hover:text-emerald-300 transition" do %>
+        <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+        brrr
+      <% end %>
+
+      <% if authenticated? %>
+        <nav class="hidden md:flex items-center gap-1">
+          <%= link_to "Dashboard", root_path, class: "px-3 py-1.5 rounded-lg text-sm font-medium #{current_page?(root_path) ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'} transition" %>
+          <%= link_to "Assets", assets_path, class: "px-3 py-1.5 rounded-lg text-sm font-medium #{current_page?(assets_path) ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'} transition" %>
+          <%= link_to "Backtests", backtest_runs_path, class: "px-3 py-1.5 rounded-lg text-sm font-medium #{current_page?(backtest_runs_path) ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'} transition" %>
+        </nav>
+      <% end %>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <% if authenticated? %>
+        <%= form_with url: market_data_imports_path, method: :post, class: "inline" do |f| %>
+          <%= f.submit "Sync Data", class: "cursor-pointer px-3 py-1.5 text-xs font-medium rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white transition" %>
+        <% end %>
+
+        <%= link_to new_backtest_run_path, class: "inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-emerald-500 text-zinc-950 hover:bg-emerald-400 transition shadow-sm" do %>
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+          New Backtest
+        <% end %>
+
+        <div class="hidden sm:flex items-center gap-2 border-l border-zinc-800 pl-3 ml-1 text-xs text-zinc-400">
+          <span><%= Current.user.email_address %></span>
+          <%= button_to "Sign out", session_path, method: :delete, class: "cursor-pointer text-zinc-500 hover:text-rose-400 transition ml-2" %>
+        </div>
+      <% else %>
+        <%= link_to "Sign in", new_session_path, class: "text-sm font-medium text-emerald-400 hover:text-emerald-300 transition" %>
+      <% end %>
+    </div>
+  </div>
+</header>

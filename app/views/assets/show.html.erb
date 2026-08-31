@@ -1,0 +1,105 @@
+<% content_for :title, "#{@asset.symbol} · Market Data Chart · Brrr" %>
+
+<div class="space-y-6">
+  <!-- Asset Header -->
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-zinc-800 pb-5">
+    <div class="flex items-center gap-4">
+      <div>
+        <div class="flex items-center gap-3">
+          <h1 class="text-3xl font-bold tracking-tight text-white font-mono"><%= @asset.symbol %></h1>
+          <span class="px-2.5 py-0.5 rounded text-xs font-medium bg-zinc-800 text-zinc-300 border border-zinc-700 font-mono">
+            <%= @asset.price_provider&.titleize || "Offline" %>: <%= @asset.price_provider_symbol %>
+          </span>
+        </div>
+        <p class="mt-1 text-sm text-zinc-400"><%= @asset.name %></p>
+      </div>
+    </div>
+
+    <!-- Interval switcher and Date range -->
+    <div class="flex flex-wrap items-center gap-3">
+      <div class="flex items-center bg-zinc-900 border border-zinc-800 rounded-lg p-1">
+        <% @asset.supported_intervals.each do |int_key| %>
+          <%= link_to int_key.humanize, asset_path(@asset.symbol, interval: int_key, from: params[:from], to: params[:to]), class: "px-3 py-1 text-xs font-medium rounded-md transition #{int_key == @interval ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200'}" %>
+        <% end %>
+      </div>
+
+      <%= link_to new_backtest_run_path(asset_id: @asset.id, interval: @interval), class: "inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-emerald-500 text-zinc-950 hover:bg-emerald-400 transition" do %>
+        Run Backtest on <%= @asset.symbol %>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Candlestick Chart Area -->
+  <div class="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 space-y-4">
+    <div class="flex items-center justify-between px-2">
+      <div class="flex items-center gap-3">
+        <span class="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+          <%= @asset.symbol %> Candlestick Chart (<%= @interval.humanize %>)
+        </span>
+        <span class="text-xs text-zinc-500 font-mono">
+          <%= @bars.length %> candles displayed
+        </span>
+      </div>
+
+      <% if @latest_bar %>
+        <div class="flex items-center gap-4 text-xs font-mono">
+          <span class="text-zinc-400">Open: <span class="text-zinc-200"><%= format_currency(@latest_bar.open) %></span></span>
+          <span class="text-zinc-400">High: <span class="text-emerald-400"><%= format_currency(@latest_bar.high) %></span></span>
+          <span class="text-zinc-400">Low: <span class="text-rose-400"><%= format_currency(@latest_bar.low) %></span></span>
+          <span class="text-zinc-400">Close: <span class="text-white font-bold"><%= format_currency(@latest_bar.close) %></span></span>
+        </div>
+      <% end %>
+    </div>
+
+    <% if @chart_data.any? %>
+      <div 
+        data-controller="candle-chart"
+        data-candle-chart-candles-value="<%= @chart_data.to_json %>"
+        class="w-full h-[480px] rounded-lg overflow-hidden bg-zinc-950 border border-zinc-800/80"
+      ></div>
+    <% else %>
+      <div class="h-64 flex flex-col items-center justify-center border border-dashed border-zinc-800 rounded-lg text-zinc-500 text-sm">
+        <p>No price bars available for the selected interval and date range.</p>
+      </div>
+    <% end %>
+  </div>
+
+  <!-- Summary Statistics Grid -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="p-4 rounded-xl border border-zinc-800 bg-zinc-900/40">
+      <div class="text-xs text-zinc-400">Latest Close Price</div>
+      <div class="mt-1 text-xl font-bold font-mono text-emerald-400">
+        <%= @latest_bar ? format_currency(@latest_bar.close) : "—" %>
+      </div>
+      <div class="mt-1 text-xs text-zinc-500 font-mono">
+        <%= @latest_bar ? format_utc(@latest_bar.open_time) : "—" %>
+      </div>
+    </div>
+
+    <div class="p-4 rounded-xl border border-zinc-800 bg-zinc-900/40">
+      <div class="text-xs text-zinc-400">Total Bars Stored</div>
+      <div class="mt-1 text-xl font-bold font-mono text-white">
+        <%= number_with_delimiter(@total_bars) %>
+      </div>
+      <div class="mt-1 text-xs text-zinc-500"><%= @interval.humanize %> intervals</div>
+    </div>
+
+    <div class="p-4 rounded-xl border border-zinc-800 bg-zinc-900/40">
+      <div class="text-xs text-zinc-400">Earliest Candle</div>
+      <div class="mt-1 text-sm font-semibold font-mono text-zinc-300">
+        <%= @first_bar ? format_utc(@first_bar.open_time, format: :date) : "—" %>
+      </div>
+      <div class="mt-1 text-xs text-zinc-500 font-mono">
+        Open: <%= @first_bar ? format_currency(@first_bar.open) : "—" %>
+      </div>
+    </div>
+
+    <div class="p-4 rounded-xl border border-zinc-800 bg-zinc-900/40">
+      <div class="text-xs text-zinc-400">Data Source</div>
+      <div class="mt-1 text-sm font-semibold text-zinc-300">
+        <%= @latest_bar&.data_source&.titleize || "None" %>
+      </div>
+      <div class="mt-1 text-xs text-zinc-500">Immutable exact numeric storage</div>
+    </div>
+  </div>
+</div>

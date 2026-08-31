@@ -13,6 +13,7 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     get root_path
 
     assert_response :success
-    assert_select "h1", "Welcome to Brrr"
+    assert_select "h1", "Research Workspace"
+    assert_select "div", text: /Configured Assets/
   end
 end

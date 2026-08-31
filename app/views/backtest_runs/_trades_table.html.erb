@@ -1,0 +1,55 @@
+<div class="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6 space-y-4">
+  <div class="flex items-center justify-between">
+    <h2 class="text-lg font-semibold text-white">Trade Attribution Log</h2>
+    <span class="text-xs text-zinc-500 font-mono"><%= trades.length %> trades recorded</span>
+  </div>
+
+  <% if trades.any? %>
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-sm text-zinc-300">
+        <thead class="border-b border-zinc-800 text-xs uppercase font-medium text-zinc-500 bg-zinc-900/80">
+          <tr>
+            <th class="py-3 px-4">#</th>
+            <th class="py-3 px-4">Type</th>
+            <th class="py-3 px-4">Entry Time</th>
+            <th class="py-3 px-4">Exit Time</th>
+            <th class="py-3 px-4 text-right">Entry Price</th>
+            <th class="py-3 px-4 text-right">Exit Price</th>
+            <th class="py-3 px-4 text-right">Holding</th>
+            <th class="py-3 px-4 text-right">Return</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-zinc-800/60 font-mono text-xs">
+          <% trades.each_with_index do |trade, idx| %>
+            <tr class="hover:bg-zinc-800/30 transition">
+              <td class="py-3 px-4 text-zinc-500"><%= idx + 1 %></td>
+              <td class="py-3 px-4">
+                <% if trade.open_position? %>
+                  <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-blue-950 text-blue-400 border border-blue-800">
+                    Open (MTM)
+                  </span>
+                <% else %>
+                  <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-zinc-800 text-zinc-300 border border-zinc-700">
+                    Closed
+                  </span>
+                <% end %>
+              </td>
+              <td class="py-3 px-4 text-zinc-300"><%= format_utc(trade.entry_time, format: :short) %></td>
+              <td class="py-3 px-4 text-zinc-300"><%= format_utc(trade.exit_time, format: :short) %></td>
+              <td class="py-3 px-4 text-right text-zinc-200"><%= format_currency(trade.entry_price) %></td>
+              <td class="py-3 px-4 text-right text-zinc-200"><%= format_currency(trade.exit_price) %></td>
+              <td class="py-3 px-4 text-right text-zinc-400"><%= trade.holding_bars %> bars</td>
+              <td class="py-3 px-4 text-right font-semibold <%= return_color_class(trade.return_percentage) %>">
+                <%= format_percentage(trade.return_percentage) %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% else %>
+    <div class="text-center py-8 text-zinc-500 text-sm">
+      No trades were triggered during this backtest window.
+    </div>
+  <% end %>
+</div>

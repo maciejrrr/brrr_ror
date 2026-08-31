@@ -1,0 +1,124 @@
+<% content_for :title, "New Backtest · Brrr" %>
+
+<div class="max-w-3xl mx-auto space-y-6">
+  <div>
+    <h1 class="text-2xl font-bold tracking-tight text-white">Configure New Backtest</h1>
+    <p class="mt-1 text-sm text-zinc-400">
+      Set up execution parameters, asset feeds, strategy rules, and trading costs.
+    </p>
+  </div>
+
+  <%= form_with model: @backtest_run, class: "space-y-6", data: { controller: "strategy-form" } do |f| %>
+    <% if @backtest_run.errors.any? %>
+      <div class="p-4 rounded-xl border border-rose-800 bg-rose-950/60 text-rose-300 text-sm space-y-1">
+        <div class="font-semibold">Unable to start backtest:</div>
+        <ul class="list-disc list-inside text-xs">
+          <% @backtest_run.errors.full_messages.each do |msg| %>
+            <li><%= msg %></li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+
+    <!-- Card 1: Asset & Interval -->
+    <div class="p-6 rounded-xl border border-zinc-800 bg-zinc-900/60 space-y-4">
+      <h2 class="text-base font-semibold text-white">1. Target Asset & Interval</h2>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <%= f.label :asset_id, "Market Asset", class: "block text-xs font-medium text-zinc-300 mb-1" %>
+          <%= f.collection_select :asset_id, @assets, :id, ->(a) { "#{a.symbol} · #{a.name}" }, {}, class: "w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none" %>
+        </div>
+
+        <div>
+          <%= f.label :interval, "Candle Interval", class: "block text-xs font-medium text-zinc-300 mb-1" %>
+          <%= f.select :interval, BacktestRun.intervals.keys.map { |k| [k.humanize, k] }, {}, class: "w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none" %>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 2: Strategy & Parameters -->
+    <div class="p-6 rounded-xl border border-zinc-800 bg-zinc-900/60 space-y-4">
+      <h2 class="text-base font-semibold text-white">2. Strategy Rules</h2>
+
+      <div>
+        <%= f.label :strategy_key, "Trading Strategy", class: "block text-xs font-medium text-zinc-300 mb-1" %>
+        <%= f.select :strategy_key, @strategies.map { |s| ["#{s.key.humanize} — #{s.description}", s.key] }, {}, class: "w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none", data: { strategy_form_target: "strategySelect", action: "change->strategy-form#strategyChanged" } %>
+      </div>
+
+      <!-- Strategy parameter fields per strategy -->
+      <% @strategies.each do |strategy| %>
+        <div 
+          data-strategy-form-target="paramGroup" 
+          data-strategy-key="<%= strategy.key %>" 
+          class="p-4 rounded-lg border border-zinc-800 bg-zinc-950/60 space-y-3 <%= strategy.key == @backtest_run.strategy_key ? '' : 'hidden' %>"
+        >
+          <div class="text-xs font-medium text-zinc-400">Parameters for <%= strategy.key.humanize %>:</div>
+          <% if strategy.defaults.empty? %>
+            <p class="text-xs text-zinc-500 italic">No customizable parameters for this strategy.</p>
+          <% else %>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <% strategy.defaults.each do |param_name, default_val| %>
+                <div>
+                  <label class="block text-xs font-mono text-zinc-400 mb-1"><%= param_name %></label>
+                  <input 
+                    type="number" 
+                    step="any" 
+                    name="backtest_run[parameters][<%= param_name %>]" 
+                    value="<%= default_val %>" 
+                    class="w-full rounded-md border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-xs text-white font-mono focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+
+    <!-- Card 3: Date Range & Execution Costs -->
+    <div class="p-6 rounded-xl border border-zinc-800 bg-zinc-900/60 space-y-4">
+      <h2 class="text-base font-semibold text-white">3. Window, Capital & Costs</h2>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <%= f.label :from_time, "Start Date (UTC)", class: "block text-xs font-medium text-zinc-300 mb-1" %>
+          <%= f.date_field :from_time, value: @backtest_run.from_time&.strftime("%Y-%m-%d"), class: "w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none" %>
+        </div>
+
+        <div>
+          <%= f.label :to_time, "End Date (UTC)", class: "block text-xs font-medium text-zinc-300 mb-1" %>
+          <%= f.date_field :to_time, value: @backtest_run.to_time&.strftime("%Y-%m-%d"), class: "w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none" %>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+        <div>
+          <%= f.label :starting_capital, "Starting Capital ($)", class: "block text-xs font-medium text-zinc-300 mb-1" %>
+          <%= f.number_field :starting_capital, step: "0.01", class: "w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white font-mono focus:border-emerald-500 focus:outline-none" %>
+        </div>
+
+        <div>
+          <%= f.label :fee_percentage, "Fee per fill (%)", class: "block text-xs font-medium text-zinc-300 mb-1" %>
+          <%= f.number_field :fee_percentage, step: "0.001", class: "w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white font-mono focus:border-emerald-500 focus:outline-none" %>
+        </div>
+
+        <div>
+          <%= f.label :slippage_percentage, "Slippage per fill (%)", class: "block text-xs font-medium text-zinc-300 mb-1" %>
+          <%= f.number_field :slippage_percentage, step: "0.001", class: "w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white font-mono focus:border-emerald-500 focus:outline-none" %>
+        </div>
+      </div>
+
+      <div class="pt-2">
+        <%= f.label :label, "Optional Label / Note", class: "block text-xs font-medium text-zinc-300 mb-1" %>
+        <%= f.text_field :label, placeholder: "e.g. BTC Bull Run 2024 Test", class: "w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none" %>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="flex items-center justify-end gap-3 pt-2">
+      <%= link_to "Cancel", backtest_runs_path, class: "px-4 py-2 text-sm text-zinc-400 hover:text-white transition" %>
+      <%= f.submit "Launch Backtest", class: "cursor-pointer px-5 py-2.5 text-sm font-semibold rounded-lg bg-emerald-500 text-zinc-950 hover:bg-emerald-400 transition shadow-sm" %>
+    </div>
+  <% end %>
+</div>

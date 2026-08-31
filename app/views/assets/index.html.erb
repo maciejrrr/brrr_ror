@@ -1,0 +1,56 @@
+<% content_for :title, "Assets · Brrr" %>
+
+<div class="space-y-6">
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold tracking-tight text-white">Market Data Assets</h1>
+      <p class="mt-1 text-sm text-zinc-400">
+        Configured market feeds with exact numeric OHLCV history stored in UTC.
+      </p>
+    </div>
+  </div>
+
+  <div class="rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
+    <table class="w-full text-left text-sm text-zinc-300">
+      <thead class="border-b border-zinc-800 text-xs uppercase font-medium text-zinc-500 bg-zinc-900/80">
+        <tr>
+          <th class="py-3.5 px-6">Symbol</th>
+          <th class="py-3.5 px-6">Name</th>
+          <th class="py-3.5 px-6">Provider</th>
+          <th class="py-3.5 px-6">Provider Symbol</th>
+          <th class="py-3.5 px-6">Intervals</th>
+          <th class="py-3.5 px-6 text-right">Total Bars</th>
+          <th class="py-3.5 px-6 text-right">Latest Close</th>
+          <th class="py-3.5 px-6 text-right">Action</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-zinc-800/60">
+        <% @assets.each do |asset| %>
+          <% latest_bar = asset.price_bars.latest_first.first %>
+          <tr class="hover:bg-zinc-800/30 transition">
+            <td class="py-4 px-6 font-mono font-bold text-white text-base"><%= asset.symbol %></td>
+            <td class="py-4 px-6 text-zinc-300"><%= asset.name %></td>
+            <td class="py-4 px-6">
+              <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono bg-zinc-800 text-zinc-300 border border-zinc-700">
+                <%= asset.price_provider&.titleize || "None" %>
+              </span>
+            </td>
+            <td class="py-4 px-6 font-mono text-xs text-zinc-400"><%= asset.price_provider_symbol || "—" %></td>
+            <td class="py-4 px-6 text-xs text-zinc-400">
+              <%= asset.supported_intervals.map(&:humanize).join(", ") %>
+            </td>
+            <td class="py-4 px-6 text-right font-mono text-zinc-300">
+              <%= number_with_delimiter(asset.price_bars.count) %>
+            </td>
+            <td class="py-4 px-6 text-right font-mono font-semibold text-emerald-400">
+              <%= latest_bar ? format_currency(latest_bar.close) : "—" %>
+            </td>
+            <td class="py-4 px-6 text-right">
+              <%= link_to "View Chart →", asset_path(asset.symbol), class: "inline-flex items-center px-3 py-1 rounded-md text-xs font-medium bg-zinc-800 text-zinc-200 hover:bg-zinc-700 hover:text-white transition border border-zinc-700" %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</div>

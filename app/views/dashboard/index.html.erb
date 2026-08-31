@@ -1,16 +1,150 @@
 <% content_for :title, "Dashboard · Brrr" %>
 
-<section class="w-full max-w-4xl mx-auto">
-  <p class="text-sm font-semibold tracking-wide text-blue-600 uppercase">Research workspace</p>
-  <h1 class="mt-3 text-4xl font-bold tracking-tight text-gray-900">Welcome to Brrr</h1>
-  <p class="mt-4 max-w-2xl text-lg leading-8 text-gray-600">
-    Explore historical market data and compare reproducible trading strategies from one focused workspace.
-  </p>
-
-  <div class="mt-10 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-    <h2 class="text-lg font-semibold text-gray-900">Your dashboard is ready</h2>
-    <p class="mt-2 text-gray-600">
-      Assets, imports, and backtests will appear here as you build your research library.
-    </p>
+<div class="space-y-8">
+  <!-- Top header -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-bold tracking-tight text-white">Research Workspace</h1>
+      <p class="mt-1 text-sm text-zinc-400">
+        Historical OHLCV candle feeds and reproducible long-only strategy backtests.
+      </p>
+    </div>
+    <div class="flex items-center gap-3">
+      <%= link_to new_backtest_run_path, class: "inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-emerald-500 text-zinc-950 hover:bg-emerald-400 transition shadow-sm" do %>
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+        New Backtest
+      <% end %>
+    </div>
   </div>
-</section>
+
+  <!-- Metric Summary Cards -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="p-5 rounded-xl border border-zinc-800 bg-zinc-900/60">
+      <div class="text-xs font-medium uppercase tracking-wider text-zinc-400">Configured Assets</div>
+      <div class="mt-2 text-3xl font-bold text-white font-mono"><%= @assets_count %></div>
+      <div class="mt-1 text-xs text-zinc-500">Binance & Yahoo Finance feeds</div>
+    </div>
+
+    <div class="p-5 rounded-xl border border-zinc-800 bg-zinc-900/60">
+      <div class="text-xs font-medium uppercase tracking-wider text-zinc-400">Price Bars Stored</div>
+      <div class="mt-2 text-3xl font-bold text-emerald-400 font-mono"><%= number_with_delimiter(@total_bars_count) %></div>
+      <div class="mt-1 text-xs text-zinc-500">Exact numeric OHLCV candles</div>
+    </div>
+
+    <div class="p-5 rounded-xl border border-zinc-800 bg-zinc-900/60">
+      <div class="text-xs font-medium uppercase tracking-wider text-zinc-400">Backtests Run</div>
+      <div class="mt-2 text-3xl font-bold text-white font-mono"><%= @backtests_count %></div>
+      <div class="mt-1 text-xs text-zinc-500">Long-only reproducible runs</div>
+    </div>
+
+    <div class="p-5 rounded-xl border border-zinc-800 bg-zinc-900/60">
+      <div class="text-xs font-medium uppercase tracking-wider text-zinc-400">Latest Import</div>
+      <div class="mt-2 text-sm font-semibold text-zinc-200 font-mono truncate"><%= format_utc(@latest_bar&.open_time) %></div>
+      <div class="mt-1 text-xs text-zinc-500">All data synced in UTC</div>
+    </div>
+  </div>
+
+  <!-- Assets Section -->
+  <div class="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6 space-y-4">
+    <div class="flex items-center justify-between">
+      <h2 class="text-lg font-semibold text-white">Market Data Assets</h2>
+      <%= link_to "View All Assets →", assets_path, class: "text-xs font-medium text-emerald-400 hover:text-emerald-300 transition" %>
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-sm text-zinc-300">
+        <thead class="border-b border-zinc-800 text-xs uppercase font-medium text-zinc-500">
+          <tr>
+            <th class="py-3 px-4">Symbol</th>
+            <th class="py-3 px-4">Name</th>
+            <th class="py-3 px-4">Provider</th>
+            <th class="py-3 px-4">Intervals</th>
+            <th class="py-3 px-4 text-right">Latest Price</th>
+            <th class="py-3 px-4 text-right">Action</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-zinc-800/60">
+          <% @assets.each do |asset| %>
+            <% latest_bar = asset.price_bars.latest_first.first %>
+            <tr class="hover:bg-zinc-800/30 transition">
+              <td class="py-3.5 px-4 font-mono font-bold text-white"><%= asset.symbol %></td>
+              <td class="py-3.5 px-4 text-zinc-400"><%= asset.name %></td>
+              <td class="py-3.5 px-4">
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono bg-zinc-800 text-zinc-300 border border-zinc-700">
+                  <%= asset.price_provider&.titleize || "None" %>
+                </span>
+              </td>
+              <td class="py-3.5 px-4 text-xs text-zinc-400">
+                <%= asset.supported_intervals.map(&:humanize).join(", ") %>
+              </td>
+              <td class="py-3.5 px-4 text-right font-mono font-medium text-zinc-200">
+                <%= latest_bar ? format_currency(latest_bar.close) : "—" %>
+              </td>
+              <td class="py-3.5 px-4 text-right">
+                <%= link_to "View Chart", asset_path(asset.symbol), class: "text-xs font-medium text-emerald-400 hover:text-emerald-300 transition" %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Recent Backtests Section -->
+  <div class="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6 space-y-4">
+    <div class="flex items-center justify-between">
+      <h2 class="text-lg font-semibold text-white">Recent Backtests</h2>
+      <%= link_to "View All Runs →", backtest_runs_path, class: "text-xs font-medium text-emerald-400 hover:text-emerald-300 transition" %>
+    </div>
+
+    <% if @recent_runs.any? %>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm text-zinc-300">
+          <thead class="border-b border-zinc-800 text-xs uppercase font-medium text-zinc-500">
+            <tr>
+              <th class="py-3 px-4">Status</th>
+              <th class="py-3 px-4">Asset</th>
+              <th class="py-3 px-4">Strategy</th>
+              <th class="py-3 px-4">Interval</th>
+              <th class="py-3 px-4 text-right">Return</th>
+              <th class="py-3 px-4 text-right">CAGR</th>
+              <th class="py-3 px-4 text-right">Max DD</th>
+              <th class="py-3 px-4 text-right">Sharpe</th>
+              <th class="py-3 px-4 text-right">Created</th>
+              <th class="py-3 px-4 text-right">Action</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-zinc-800/60">
+            <% @recent_runs.each do |run| %>
+              <tr class="hover:bg-zinc-800/30 transition">
+                <td class="py-3.5 px-4">
+                  <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border <%= status_badge_class(run.status) %>">
+                    <%= run.status.capitalize %>
+                  </span>
+                </td>
+                <td class="py-3.5 px-4 font-mono font-bold text-white"><%= run.asset.symbol %></td>
+                <td class="py-3.5 px-4 font-medium text-zinc-200"><%= run.strategy_key.humanize %></td>
+                <td class="py-3.5 px-4 text-xs text-zinc-400"><%= run.interval.humanize %></td>
+                <td class="py-3.5 px-4 text-right font-mono font-semibold <%= return_color_class(run.total_return_percentage) %>">
+                  <%= format_percentage(run.total_return_percentage) %>
+                </td>
+                <td class="py-3.5 px-4 text-right font-mono text-zinc-300"><%= format_percentage(run.cagr_percentage) %></td>
+                <td class="py-3.5 px-4 text-right font-mono text-rose-400"><%= format_percentage(run.maximum_drawdown_percentage) %></td>
+                <td class="py-3.5 px-4 text-right font-mono text-zinc-300"><%= format_ratio(run.sharpe_ratio) %></td>
+                <td class="py-3.5 px-4 text-right text-xs text-zinc-500 font-mono"><%= format_utc(run.created_at, format: :short) %></td>
+                <td class="py-3.5 px-4 text-right">
+                  <%= link_to "Details", backtest_run_path(run), class: "text-xs font-medium text-emerald-400 hover:text-emerald-300 transition" %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% else %>
+      <div class="text-center py-12 border border-dashed border-zinc-800 rounded-lg">
+        <p class="text-zinc-400 text-sm">No backtests executed yet.</p>
+        <%= link_to "Run your first backtest", new_backtest_run_path, class: "mt-3 inline-block text-xs font-semibold text-emerald-400 hover:text-emerald-300" %>
+      </div>
+    <% end %>
+  </div>
+</div>

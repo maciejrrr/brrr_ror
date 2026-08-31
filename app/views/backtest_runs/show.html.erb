@@ -1,0 +1,119 @@
+<% content_for :title, "#{@backtest_run.display_name} · Backtest · Brrr" %>
+
+<div class="space-y-6">
+  <!-- Header -->
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-zinc-800 pb-5">
+    <div>
+      <div class="flex items-center gap-3">
+        <h1 class="text-2xl font-bold tracking-tight text-white"><%= @backtest_run.display_name %></h1>
+        <span class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium border <%= status_badge_class(@backtest_run.status) %>">
+          <%= @backtest_run.status.capitalize %>
+        </span>
+        <% if @backtest_run.demo_data? %>
+          <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono bg-zinc-800 text-zinc-400 border border-zinc-700">
+            Demo Data
+          </span>
+        <% end %>
+      </div>
+      <div class="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-400 font-mono">
+        <span>Asset: <strong class="text-white"><%= @backtest_run.asset.symbol %></strong></span>
+        <span>Interval: <strong class="text-white"><%= @backtest_run.interval.humanize %></strong></span>
+        <span>Window: <strong class="text-white"><%= format_utc(@backtest_run.from_time, format: :date) %></strong> to <strong class="text-white"><%= format_utc(@backtest_run.to_time, format: :date) %></strong></span>
+        <span>Capital: <strong class="text-white"><%= format_currency(@backtest_run.starting_capital) %></strong></span>
+        <span>Costs: <strong class="text-white"><%= @backtest_run.fee_percentage %>% fee / <%= @backtest_run.slippage_percentage %>% slip</strong></span>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <%= link_to "← Back to Runs", backtest_runs_path, class: "px-3 py-1.5 rounded-lg text-xs font-medium text-zinc-400 hover:text-white transition bg-zinc-900 border border-zinc-800" %>
+      <%= button_to "Delete Run", backtest_run_path(@backtest_run), method: :delete, data: { turbo_confirm: "Are you sure you want to delete this backtest run?" }, class: "cursor-pointer px-3 py-1.5 rounded-lg text-xs font-medium text-rose-400 hover:bg-rose-950/40 border border-rose-900/50 transition" %>
+    </div>
+  </div>
+
+  <% if @backtest_run.queued? || @backtest_run.running? %>
+    <!-- Async progress state with polling -->
+    <div 
+      data-controller="polling" 
+      data-polling-interval-value="1500"
+      class="p-12 rounded-xl border border-zinc-800 bg-zinc-900/60 text-center space-y-4"
+    >
+      <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-400">
+        <svg class="w-6 h-6 animate-spin" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+      </div>
+      <div>
+        <h2 class="text-lg font-semibold text-white">
+          <%= @backtest_run.queued? ? "Backtest Queued in Worker" : "Simulation Running..." %>
+        </h2>
+        <p class="mt-1 text-sm text-zinc-400">
+          Loading price bars and executing signals with lookahead-free rules. Page updates automatically.
+        </p>
+      </div>
+    </div>
+
+  <% elsif @backtest_run.failed? %>
+    <!-- Failed state -->
+    <div class="p-8 rounded-xl border border-rose-800/80 bg-rose-950/40 space-y-4">
+      <div class="flex items-center gap-3 text-rose-400">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        <h2 class="text-lg font-semibold">Backtest Execution Failed</h2>
+      </div>
+      <div class="p-4 rounded-lg bg-black/40 border border-rose-900/60 font-mono text-xs text-rose-300">
+        <%= @backtest_run.error_message || "An unexpected error occurred during backtest execution." %>
+      </div>
+      <div>
+        <%= link_to "Configure New Run", new_backtest_run_path, class: "inline-flex items-center px-4 py-2 text-xs font-semibold rounded-lg bg-rose-500 text-white hover:bg-rose-600 transition" %>
+      </div>
+    </div>
+
+  <% elsif @backtest_run.completed? %>
+    <!-- KPI Metrics -->
+    <%= render "backtest_runs/metrics_cards", run: @backtest_run %>
+
+    <!-- Equity Curve Chart -->
+    <div class="rounded-xl border border-zinc-800 bg-zinc-900/60 p-5 space-y-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-base font-semibold text-white">Equity Growth Curve</h2>
+          <p class="text-xs text-zinc-400">Portfolio valuation across the simulation window in USD.</p>
+        </div>
+        <div class="text-xs font-mono text-zinc-400">
+          Start: <span class="text-zinc-200"><%= format_currency(@backtest_run.starting_capital) %></span> → End: <span class="text-emerald-400 font-bold"><%= format_currency(@backtest_run.final_equity) %></span>
+        </div>
+      </div>
+
+      <% if @backtest_run.equity_curve.any? %>
+        <div 
+          data-controller="equity-chart"
+          data-equity-chart-curve-value="<%= @backtest_run.equity_curve.to_json %>"
+          class="w-full h-[380px] rounded-lg overflow-hidden bg-zinc-950 border border-zinc-800/80"
+        ></div>
+      <% else %>
+        <div class="h-48 flex items-center justify-center text-zinc-500 text-sm border border-dashed border-zinc-800 rounded-lg">
+          No equity points recorded.
+        </div>
+      <% end %>
+    </div>
+
+    <!-- Strategy Parameters & Configuration Details -->
+    <div class="p-5 rounded-xl border border-zinc-800 bg-zinc-900/40 space-y-3">
+      <h3 class="text-xs font-semibold uppercase tracking-wider text-zinc-400">Resolved Parameters</h3>
+      <div class="flex flex-wrap gap-2">
+        <% if @backtest_run.resolved_parameters.present? && @backtest_run.resolved_parameters.any? %>
+          <% @backtest_run.resolved_parameters.each do |k, v| %>
+            <div class="px-3 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 text-xs font-mono">
+              <span class="text-zinc-500"><%= k %>:</span> <span class="text-emerald-400 font-semibold"><%= v %></span>
+            </div>
+          <% end %>
+        <% else %>
+          <span class="text-xs text-zinc-500 italic">No custom parameters (default execution)</span>
+        <% end %>
+      </div>
+    </div>
+
+    <!-- Trades Log Table -->
+    <%= render "backtest_runs/trades_table", trades: @trades %>
+  <% end %>
+</div>
