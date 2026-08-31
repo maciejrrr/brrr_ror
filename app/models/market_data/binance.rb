@@ -22,48 +22,59 @@ module MarketData
       cursor = from.to_time.to_i * 1_000
       ending = to.to_time.to_i * 1_000
 
-      completed = false
-      MAX_PAGES.times do
-        break if cursor > ending
+      completed = paginate(symbol:, interval_code:, duration:, ending:, seen:, bars:, as_of:, cursor:)
+      raise Error, "Binance pagination exceeded #{MAX_PAGES} pages" unless completed || cursor > ending
 
-        rows = @http_client.get_json(PATH, params: {
+      bars.sort_by(&:open_time)
+    end
+
+    private
+      def paginate(symbol:, interval_code:, duration:, ending:, seen:, bars:, as_of:, cursor:)
+        MAX_PAGES.times do
+          return true if cursor > ending
+
+          rows = fetch_page(symbol, interval_code, cursor, ending)
+          return true if rows.empty?
+
+          process_rows(rows, duration:, ending:, seen:, bars:, as_of:)
+          return true if rows.length < LIMIT
+
+          next_cursor = Integer(rows.last.fetch(0)) + duration
+          raise Error, "Binance pagination cursor did not advance" if next_cursor <= cursor
+
+          cursor = next_cursor
+          @sleeper.call(PAGE_DELAY)
+        end
+        false
+      end
+
+      def fetch_page(symbol, interval_code, cursor, ending)
+        @http_client.get_json(PATH, params: {
           symbol:, interval: interval_code, startTime: cursor, endTime: ending, limit: LIMIT
         })
-        if rows.empty?
-          completed = true
-          break
-        end
+      end
 
+      def process_rows(rows, duration:, ending:, seen:, bars:, as_of:)
         rows.each do |row|
           open_ms = Integer(row.fetch(0))
           next if open_ms > ending || seen[open_ms]
 
-          candle = Candle.new(
-            open_time: Time.at(open_ms / 1_000, (open_ms % 1_000) * 1_000).utc,
-            close_time: Time.at((open_ms + duration) / 1_000, ((open_ms + duration) % 1_000) * 1_000).utc,
-            open: row.fetch(1), high: row.fetch(2), low: row.fetch(3),
-            close: row.fetch(4), volume: row.fetch(5)
-          )
+          candle = build_candle(row, duration)
           next unless candle.closed_as_of?(as_of)
 
           seen[open_ms] = true
           bars << candle
         end
-
-        if rows.length < LIMIT
-          completed = true
-          break
-        end
-        next_cursor = Integer(rows.last.fetch(0)) + duration
-        raise Error, "Binance pagination cursor did not advance" if next_cursor <= cursor
-
-        cursor = next_cursor
-        @sleeper.call(PAGE_DELAY)
       end
 
-      raise Error, "Binance pagination exceeded #{MAX_PAGES} pages" unless completed || cursor > ending
-
-      bars.sort_by(&:open_time)
-    end
+      def build_candle(row, duration)
+        open_ms = Integer(row.fetch(0))
+        Candle.new(
+          open_time: Time.at(open_ms / 1_000, (open_ms % 1_000) * 1_000).utc,
+          close_time: Time.at((open_ms + duration) / 1_000, ((open_ms + duration) % 1_000) * 1_000).utc,
+          open: row.fetch(1), high: row.fetch(2), low: row.fetch(3),
+          close: row.fetch(4), volume: row.fetch(5)
+        )
+      end
   end
 end

@@ -51,6 +51,7 @@ Prefer conventional Rails organization:
   indicators, strategies, and the database-independent backtest engine.
 - Active Job classes coordinate asynchronous work and persistence.
 - Use partials for repeated UI and helpers only for presentation logic.
+- Maintain concise, single-responsibility methods (preferring methods <= 20-25 lines). Extract complex orchestration, database transactions, and data mapping into focused, well-named private helper methods.
 - Do not create a generic `ApplicationService`, repository abstraction, or a
   `lib` dumping ground.
 

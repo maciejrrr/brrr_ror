@@ -6,7 +6,6 @@ class BacktestExecutionJob < ApplicationJob
     return unless run&.queued?
 
     run.update!(status: :running)
-
     execute(run)
   rescue ActiveRecord::RecordInvalid => error
     Rails.logger.warn("Validation error during backtest execution #{backtest_run_id}: #{error.message}")
@@ -21,70 +20,49 @@ class BacktestExecutionJob < ApplicationJob
 
   private
     def execute(run)
+      bars = load_bars(run)
+      strategy_result = run_simulation(run, bars, strategy_key: run.strategy_key, params: run.resolved_parameters)
+      benchmark_result = run_simulation(run, bars, strategy_key: "buy_hold", params: {})
+
+      persist_results(run, strategy_result:, benchmark_result:, bars:)
+    end
+
+    def load_bars(run)
       bars = run.asset.price_bars.public_send(run.interval).between(run.from_time, run.to_time).chronological.to_a
       if bars.length < 2
         raise ArgumentError, "At least 2 price bars are required for the selected date range and interval"
       end
 
+      bars
+    end
+
+    def run_simulation(run, bars, strategy_key:, params:)
       bars_per_year = run.interval == "one_hour" ? 8760 : 365
-      costs = {
-        fee_percentage: run.fee_percentage.to_f,
-        slippage_percentage: run.slippage_percentage.to_f
-      }
+      costs = { fee_percentage: run.fee_percentage.to_f, slippage_percentage: run.slippage_percentage.to_f }
 
       strategy_output = Backtest::Strategies.build_weights(
-        key: run.strategy_key,
+        key: strategy_key,
         candles: bars,
-        params: run.resolved_parameters,
-        bars_per_year: bars_per_year
+        params:,
+        bars_per_year:
       )
 
-      strategy_result = Backtest::Engine.run(
+      Backtest::Engine.run(
         candles: bars,
         weights: strategy_output[:weights],
-        costs: costs,
+        costs:,
         starting_capital: run.starting_capital.to_f,
-        bars_per_year: bars_per_year
+        bars_per_year:
       )
+    end
 
-      benchmark_output = Backtest::Strategies.build_weights(
-        key: "buy_hold",
-        candles: bars,
-        params: {},
-        bars_per_year: bars_per_year
-      )
-
-      benchmark_result = Backtest::Engine.run(
-        candles: bars,
-        weights: benchmark_output[:weights],
-        costs: costs,
-        starting_capital: run.starting_capital.to_f,
-        bars_per_year: bars_per_year
-      )
-
-      has_demo_bars = bars.any? { |b| b.respond_to?(:demo?) && b.demo? }
-      is_demo = run.demo_data? || has_demo_bars
+    def persist_results(run, strategy_result:, benchmark_result:, bars:)
+      is_demo = run.demo_data? || bars.any? { |b| b.respond_to?(:demo?) && b.demo? }
       display_curve = downsample_equity_curve(strategy_result.equity_curve)
 
       BacktestRun.transaction do
         run.backtest_trades.delete_all
-
-        trades_attrs = strategy_result.trades.map do |trade|
-          {
-            backtest_run_id: run.id,
-            entry_time: trade.entry_time,
-            exit_time: trade.exit_time,
-            entry_price: trade.entry_price,
-            exit_price: trade.exit_price,
-            return_percentage: trade.return_percentage,
-            holding_bars: trade.holding_bars,
-            open_position: trade.open_position,
-            created_at: Time.current.utc,
-            updated_at: Time.current.utc
-          }
-        end
-
-        BacktestTrade.insert_all!(trades_attrs) if trades_attrs.any?
+        insert_trades(run, strategy_result.trades)
 
         run.update!(
           status: :completed,
@@ -104,6 +82,27 @@ class BacktestExecutionJob < ApplicationJob
           error_message: nil
         )
       end
+    end
+
+    def insert_trades(run, trades)
+      return if trades.empty?
+
+      trades_attrs = trades.map do |trade|
+        {
+          backtest_run_id: run.id,
+          entry_time: trade.entry_time,
+          exit_time: trade.exit_time,
+          entry_price: trade.entry_price,
+          exit_price: trade.exit_price,
+          return_percentage: trade.return_percentage,
+          holding_bars: trade.holding_bars,
+          open_position: trade.open_position,
+          created_at: Time.current.utc,
+          updated_at: Time.current.utc
+        }
+      end
+
+      BacktestTrade.insert_all!(trades_attrs)
     end
 
     def downsample_equity_curve(curve, max_points: 500)

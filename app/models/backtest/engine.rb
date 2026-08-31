@@ -21,66 +21,116 @@ module Backtest
 
     def run
       validate_input
-      fee = @costs[:fee_percentage] || @costs["fee_percentage"] || @costs[:fee_pct] || @costs["fee_pct"] || 0.0
-      slippage = @costs[:slippage_percentage] || @costs["slippage_percentage"] || @costs[:slippage_pct] || @costs["slippage_pct"] || 0.0
-      fee_rate = (fee.to_f + slippage.to_f) / 100.0
-      cash = @starting_capital
-      units = 0.0
-      bars_in_market = 0
-      equity_curve = []
-      trades = []
-      open_trade = nil
-
-      @candles.each_with_index do |candle, index|
-        equity = cash + units * price(candle, :close)
-        equity_curve << { time: candle.open_time, value: equity }
-        bars_in_market += 1 if units.positive?
-        next if index + 1 >= @candles.length
-
-        target = clamp(@weights[index])
-        fill_price = price(@candles[index + 1], :open)
-        equity_at_fill = cash + units * fill_price
-        desired_notional = ((target * equity_at_fill) / fill_price - units) * fill_price
-        next if desired_notional.abs <= equity_at_fill * MIN_REBALANCE_FRACTION
-
-        if desired_notional.positive?
-          notional = [ desired_notional, cash / (1 + fee_rate) ].min
-          next unless notional.positive?
-
-          cash -= notional * (1 + fee_rate)
-          units += notional / fill_price
-          open_trade ||= { entry_time: @candles[index + 1].open_time, entry_price: fill_price,
-                           entry_index: index + 1, invested_cash: 0.0, returned_cash: 0.0, peak_capital: 0.0 }
-          open_trade[:invested_cash] += notional * (1 + fee_rate)
-          open_trade[:peak_capital] = [ open_trade[:peak_capital], open_trade[:invested_cash] - open_trade[:returned_cash] ].max
-        else
-          notional = -desired_notional
-          cash += notional * (1 - fee_rate)
-          units -= notional / fill_price
-          units = 0.0 if units < 1e-12
-          next unless open_trade
-
-          open_trade[:returned_cash] += notional * (1 - fee_rate)
-          next unless units.zero?
-
-          trades << build_trade(open_trade, exit_time: @candles[index + 1].open_time,
-            exit_price: fill_price, exit_index: index + 1, liquidation_value: 0.0, open_position: false)
-          open_trade = nil
-        end
-      end
-
-      if open_trade
-        last = @candles.last
-        trades << build_trade(open_trade, exit_time: last.open_time, exit_price: price(last, :close),
-          exit_index: @candles.length - 1, liquidation_value: units * price(last, :close) * (1 - fee_rate), open_position: true)
-      end
-
+      rate = fee_rate
+      equity_curve, trades, bars_in_market = simulate_timeline(rate)
       metrics = summarize(equity_curve)
-      Result.new(**metrics, exposure_percentage: bars_in_market * 100.0 / @candles.length,
-        trade_count: trades.length, win_rate_percentage: win_rate(trades), trades:, equity_curve:)
+
+      Result.new(
+        **metrics,
+        exposure_percentage: bars_in_market * 100.0 / @candles.length,
+        trade_count: trades.length,
+        win_rate_percentage: win_rate(trades),
+        trades:,
+        equity_curve:
+      )
     end
 
     private
+      def fee_rate
+        fee = @costs[:fee_percentage] || @costs["fee_percentage"] || @costs[:fee_pct] || @costs["fee_pct"] || 0.0
+        slippage = @costs[:slippage_percentage] || @costs["slippage_percentage"] || @costs[:slippage_pct] || @costs["slippage_pct"] || 0.0
+        (fee.to_f + slippage.to_f) / 100.0
+      end
+
+      def simulate_timeline(rate)
+        state = { cash: @starting_capital, units: 0.0, bars_in_market: 0, open_trade: nil }
+        equity_curve = []
+        trades = []
+
+        @candles.each_with_index do |candle, index|
+          equity = state[:cash] + state[:units] * price(candle, :close)
+          equity_curve << { time: candle.open_time, value: equity }
+          state[:bars_in_market] += 1 if state[:units].positive?
+          next if index + 1 >= @candles.length
+
+          rebalance_step(state, index, rate, trades)
+        end
+
+        close_final_position(state, rate, trades)
+        [ equity_curve, trades, state[:bars_in_market] ]
+      end
+
+      def rebalance_step(state, index, rate, trades)
+        target = clamp(@weights[index])
+        fill_price = price(@candles[index + 1], :open)
+        equity_at_fill = state[:cash] + state[:units] * fill_price
+        desired_notional = ((target * equity_at_fill) / fill_price - state[:units]) * fill_price
+        return if desired_notional.abs <= equity_at_fill * MIN_REBALANCE_FRACTION
+
+        if desired_notional.positive?
+          execute_buy(state, desired_notional, fill_price, rate, index)
+        else
+          execute_sell(state, desired_notional, fill_price, rate, index, trades)
+        end
+      end
+
+      def execute_buy(state, desired_notional, fill_price, rate, index)
+        notional = [ desired_notional, state[:cash] / (1 + rate) ].min
+        return unless notional.positive?
+
+        state[:cash] -= notional * (1 + rate)
+        state[:units] += notional / fill_price
+        state[:open_trade] ||= {
+          entry_time: @candles[index + 1].open_time,
+          entry_price: fill_price,
+          entry_index: index + 1,
+          invested_cash: 0.0,
+          returned_cash: 0.0,
+          peak_capital: 0.0
+        }
+        state[:open_trade][:invested_cash] += notional * (1 + rate)
+        state[:open_trade][:peak_capital] = [
+          state[:open_trade][:peak_capital],
+          state[:open_trade][:invested_cash] - state[:open_trade][:returned_cash]
+        ].max
+      end
+
+      def execute_sell(state, desired_notional, fill_price, rate, index, trades)
+        notional = -desired_notional
+        state[:cash] += notional * (1 - rate)
+        state[:units] -= notional / fill_price
+        state[:units] = 0.0 if state[:units] < 1e-12
+        return unless state[:open_trade]
+
+        state[:open_trade][:returned_cash] += notional * (1 - rate)
+        return unless state[:units].zero?
+
+        trades << build_trade(
+          state[:open_trade],
+          exit_time: @candles[index + 1].open_time,
+          exit_price: fill_price,
+          exit_index: index + 1,
+          liquidation_value: 0.0,
+          open_position: false
+        )
+        state[:open_trade] = nil
+      end
+
+      def close_final_position(state, rate, trades)
+        return unless state[:open_trade]
+
+        last = @candles.last
+        close_price = price(last, :close)
+        trades << build_trade(
+          state[:open_trade],
+          exit_time: last.open_time,
+          exit_price: close_price,
+          exit_index: @candles.length - 1,
+          liquidation_value: state[:units] * close_price * (1 - rate),
+          open_position: true
+        )
+      end
+
       def validate_input
         raise ArgumentError, "weights length must match candles length" unless @weights.length == @candles.length
         raise ArgumentError, "A backtest needs at least 2 candles" if @candles.length < 2
@@ -111,45 +161,60 @@ module Backtest
 
       def build_trade(trade, exit_time:, exit_price:, exit_index:, liquidation_value:, open_position:)
         profit = trade[:returned_cash] + liquidation_value - trade[:invested_cash]
-        return_pct = if trade[:peak_capital].positive?
-          profit / trade[:peak_capital] * 100
-        else
-          0.0
-        end
-        Trade.new(entry_time: trade[:entry_time], exit_time:, entry_price: trade[:entry_price], exit_price:,
-          return_percentage: return_pct, holding_bars: exit_index - trade[:entry_index], open_position:)
+        return_pct = trade[:peak_capital].positive? ? (profit / trade[:peak_capital] * 100) : 0.0
+        Trade.new(
+          entry_time: trade[:entry_time],
+          exit_time:,
+          entry_price: trade[:entry_price],
+          exit_price:,
+          return_percentage: return_pct,
+          holding_bars: exit_index - trade[:entry_index],
+          open_position:
+        )
       end
 
       def summarize(curve)
         final_equity = [ curve.last[:value], 0.0 ].max
-        years = (curve.length - 1) / @bars_per_year
+        drawdown = calculate_drawdown(curve)
+        sharpe = calculate_sharpe(curve)
+        cagr = calculate_cagr(final_equity, curve.length)
+
+        {
+          final_equity:,
+          total_return_percentage: (final_equity - @starting_capital) / @starting_capital * 100,
+          cagr_percentage: cagr,
+          maximum_drawdown_percentage: drawdown,
+          sharpe_ratio: sharpe
+        }
+      end
+
+      def calculate_drawdown(curve)
         peak = -Float::INFINITY
         drawdown = 0.0
         curve.each do |point|
           peak = point[:value] if point[:value] > peak
-          if peak.positive?
-            drawdown = [ drawdown, (point[:value] - peak) / peak * 100 ].min
-          else
-            drawdown = -100.0
-          end
+          drawdown = peak.positive? ? [ drawdown, (point[:value] - peak) / peak * 100 ].min : -100.0
         end
+        drawdown
+      end
+
+      def calculate_sharpe(curve)
         returns = curve.each_cons(2).filter_map { |first, second| first[:value].positive? ? second[:value] / first[:value] - 1 : nil }
-        mean = returns.empty? ? 0.0 : returns.sum / returns.length
-        variance = returns.length > 1 ? returns.sum { |value| (value - mean)**2 } / (returns.length - 1) : 0.0
-        standard_deviation = Math.sqrt(variance)
-        sharpe = standard_deviation.positive? ? mean / standard_deviation * Math.sqrt(@bars_per_year) : 0.0
-        cagr = if years.positive?
-          if final_equity <= 0
-            -100.0
-          else
-            raw_cagr = ((final_equity / @starting_capital)**(1.0 / years) - 1.0) * 100.0
-            raw_cagr.finite? ? raw_cagr : (final_equity > @starting_capital ? 100_000.0 : -100.0)
-          end
-        else
-          0.0
-        end
-        { final_equity:, total_return_percentage: (final_equity - @starting_capital) / @starting_capital * 100,
-          cagr_percentage: cagr, maximum_drawdown_percentage: drawdown, sharpe_ratio: sharpe }
+        return 0.0 if returns.empty?
+
+        mean = returns.sum / returns.length
+        variance = returns.length > 1 ? returns.sum { |v| (v - mean)**2 } / (returns.length - 1) : 0.0
+        std_dev = Math.sqrt(variance)
+        std_dev.positive? ? (mean / std_dev * Math.sqrt(@bars_per_year)) : 0.0
+      end
+
+      def calculate_cagr(final_equity, curve_length)
+        years = (curve_length - 1) / @bars_per_year
+        return 0.0 unless years.positive?
+        return -100.0 if final_equity <= 0
+
+        raw_cagr = ((final_equity / @starting_capital)**(1.0 / years) - 1.0) * 100.0
+        raw_cagr.finite? ? raw_cagr : (final_equity > @starting_capital ? 100_000.0 : -100.0)
       end
 
       def win_rate(trades)
