@@ -1,0 +1,46 @@
+completed:
+  user: one
+  asset: spy
+  status: 2
+  interval: 1
+  strategy_key: buy_hold
+  resolved_parameters: {}
+  label: Demo buy and hold
+  from_time: 2024-01-02 00:00:00 Z
+  to_time: 2024-01-03 00:00:00 Z
+  fee_percentage: 0.100000
+  slippage_percentage: 0.050000
+  starting_capital: 10000.00
+  demo_data: true
+  bar_count: 2
+  final_equity: 10100.0
+  total_return_percentage: 1.0
+  cagr_percentage: 10.0
+  maximum_drawdown_percentage: -0.5
+  sharpe_ratio: 1.25
+  exposure_percentage: 50.0
+  trade_count: 1
+  win_rate_percentage: 100.0
+  benchmark_cagr_percentage: 10.0
+  benchmark_maximum_drawdown_percentage: -0.5
+  equity_curve:
+    - time: "2024-01-02T00:00:00Z"
+      value: 10000.0
+    - time: "2024-01-03T00:00:00Z"
+      value: 10100.0
+
+queued:
+  user: two
+  asset: btc
+  status: 0
+  interval: 0
+  strategy_key: donchian
+  resolved_parameters:
+    entry_period: 168
+    exit_period: 84
+  from_time: 2024-01-02 00:00:00 Z
+  to_time: 2024-01-03 00:00:00 Z
+  fee_percentage: 0.100000
+  slippage_percentage: 0.050000
+  starting_capital: 25000.00
+  equity_curve: []

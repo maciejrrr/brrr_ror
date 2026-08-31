@@ -1,0 +1,33 @@
+spy_day_one:
+  asset: spy
+  interval: 1
+  data_source: 0
+  open_time: 2024-01-02 00:00:00 Z
+  open: 470.0000000000
+  high: 475.0000000000
+  low: 468.0000000000
+  close: 473.0000000000
+  volume: 1000000.1250000000
+
+spy_day_two:
+  asset: spy
+  interval: 1
+  data_source: 0
+  open_time: 2024-01-03 00:00:00 Z
+  open: 473.0000000000
+  high: 478.0000000000
+  low: 471.0000000000
+  close: 477.0000000000
+  volume: 1100000.2500000000
+
+btc_hour:
+  asset: btc
+  interval: 0
+  data_source: 0
+  open_time: 2024-01-02 01:00:00 Z
+  open: 45000.1234567890
+  high: 45500.1234567890
+  low: 44800.1234567890
+  close: 45250.1234567890
+  volume: 1234.1234567890
+

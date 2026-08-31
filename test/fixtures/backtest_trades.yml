@@ -1,0 +1,10 @@
+completed_trade:
+  backtest_run: completed
+  entry_time: 2024-01-02 00:00:00 Z
+  exit_time: 2024-01-03 00:00:00 Z
+  entry_price: 470.0000000000
+  exit_price: 477.0000000000
+  return_percentage: 1.25
+  holding_bars: 1
+  open_position: false
+

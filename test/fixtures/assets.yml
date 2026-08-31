@@ -1,0 +1,16 @@
+spy:
+  symbol: SPY
+  name: SPDR S&P 500 ETF Trust
+  price_provider: 0
+  price_provider_symbol: SPY
+
+btc:
+  symbol: BTC
+  name: Bitcoin
+  price_provider: 1
+  price_provider_symbol: BTCUSDT
+
+unconfigured:
+  symbol: TEST
+  name: Test Asset
+
