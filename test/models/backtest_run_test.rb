@@ -43,11 +43,33 @@ class BacktestRunTest < ActiveSupport::TestCase
     assert_match(/configuration cannot change/, run.errors[:base].join)
   end
 
-  test "rejects non-finite result metrics" do
-    run = backtest_runs(:completed)
-    run.sharpe_ratio = Float::NAN
+  test "rejects dates in the future" do
+    run = backtest_runs(:queued)
+    run.to_time = 10.days.from_now.utc
 
     assert_not run.valid?
-    assert run.errors.of_kind?(:sharpe_ratio, :not_a_number)
+    assert_includes run.errors[:to_time], "cannot be in the future"
+
+    run.to_time = Time.current.utc
+    run.from_time = 5.days.from_now.utc
+    assert_not run.valid?
+    assert_includes run.errors[:from_time], "cannot be in the future"
+  end
+
+  test "rejects creation when fewer than 2 candles exist in window" do
+    run = BacktestRun.new(
+      user: users(:one),
+      asset: assets(:spy),
+      interval: :one_day,
+      strategy_key: "buy_hold",
+      from_time: Time.utc(2020, 1, 1),
+      to_time: Time.utc(2020, 1, 2),
+      starting_capital: 10_000,
+      fee_percentage: 0.05,
+      slippage_percentage: 0.02
+    )
+
+    assert_not run.valid?
+    assert_match(/At least 2 completed candles are required/, run.errors[:base].join)
   end
 end

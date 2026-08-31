@@ -45,8 +45,9 @@ class BacktestRun < ApplicationRecord
     record.errors.add(attribute, :not_a_number) unless value.finite?
   end
   validates :label, length: { maximum: 100 }, allow_blank: true
-  validates :error_message, length: { maximum: 1_000 }, allow_blank: true
   validate :time_range_is_valid
+  validate :dates_are_not_in_future
+  validate :at_least_two_bars_exist_in_window, on: :create, if: :queued?
   validate :combined_cost_is_below_one_hundred_percent
   validate :resolved_parameters_is_an_object
   validate :equity_curve_is_an_array
@@ -89,10 +90,26 @@ class BacktestRun < ApplicationRecord
     rescue Backtest::InvalidStrategyParameters => error
       errors.add(:resolved_parameters, error.message)
     end
+
     def time_range_is_valid
       return if from_time.blank? || to_time.blank? || from_time <= to_time
 
       errors.add(:to_time, "must be on or after the start time")
+    end
+
+    def dates_are_not_in_future
+      today = Time.current.end_of_day.utc
+      errors.add(:to_time, "cannot be in the future") if to_time.present? && to_time > today
+      errors.add(:from_time, "cannot be in the future") if from_time.present? && from_time > today
+    end
+
+    def at_least_two_bars_exist_in_window
+      return unless asset && interval && from_time && to_time && from_time <= to_time
+
+      count = asset.price_bars.public_send(interval).between(from_time, to_time).count
+      if count < 2
+        errors.add(:base, "Selected asset has only #{count} #{interval.humanize.downcase} candle(s) in this date range. At least 2 completed candles are required.")
+      end
     end
 
     def combined_cost_is_below_one_hundred_percent

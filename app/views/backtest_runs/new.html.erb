@@ -27,7 +27,14 @@
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <%= f.label :asset_id, "Market Asset", class: "block text-xs font-medium text-zinc-300 mb-1" %>
-          <%= f.collection_select :asset_id, @assets, :id, ->(a) { "#{a.symbol} · #{a.name}" }, {}, class: "w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none" %>
+          <%= f.select :asset_id, @assets.map { |a| [
+                "#{a.symbol} · #{a.name}",
+                a.id,
+                {
+                  "data-min-date" => a.price_bars.chronological.pick(:open_time)&.strftime("%Y-%m-%d"),
+                  "data-max-date" => [a.price_bars.latest_first.pick(:open_time), Time.current.utc].compact.min&.strftime("%Y-%m-%d")
+                }
+              ] }, {}, class: "w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none", data: { strategy_form_target: "assetSelect", action: "change->strategy-form#assetChanged" } %>
         </div>
 
         <div>
@@ -83,12 +90,12 @@
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <%= f.label :from_time, "Start Date (UTC)", class: "block text-xs font-medium text-zinc-300 mb-1" %>
-          <%= f.date_field :from_time, value: @backtest_run.from_time&.strftime("%Y-%m-%d"), class: "w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none" %>
+          <%= f.date_field :from_time, value: @backtest_run.from_time&.strftime("%Y-%m-%d"), max: Date.current.to_s, class: "w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none", data: { strategy_form_target: "fromTime", action: "change->strategy-form#fromTimeChanged" } %>
         </div>
 
         <div>
           <%= f.label :to_time, "End Date (UTC)", class: "block text-xs font-medium text-zinc-300 mb-1" %>
-          <%= f.date_field :to_time, value: @backtest_run.to_time&.strftime("%Y-%m-%d"), class: "w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none" %>
+          <%= f.date_field :to_time, value: @backtest_run.to_time&.strftime("%Y-%m-%d"), max: Date.current.to_s, class: "w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none", data: { strategy_form_target: "toTime", action: "change->strategy-form#toTimeChanged" } %>
         </div>
       </div>
 
@@ -111,7 +118,7 @@
 
       <div class="pt-2">
         <%= f.label :label, "Optional Label / Note", class: "block text-xs font-medium text-zinc-300 mb-1" %>
-        <%= f.text_field :label, placeholder: "e.g. BTC Bull Run 2024 Test", class: "w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none" %>
+        <%= f.text_field :label, placeholder: "e.g. BTC Bull Run Test", class: "w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none" %>
       </div>
     </div>
 

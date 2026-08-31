@@ -23,6 +23,14 @@
         <% end %>
       </div>
 
+      <%= form_with url: asset_path(@asset.symbol), method: :get, class: "flex items-center gap-2" do |f| %>
+        <%= f.hidden_field :interval, value: @interval %>
+        <%= f.date_field :from, value: @from_time&.strftime("%Y-%m-%d"), min: @first_bar&.open_time&.strftime("%Y-%m-%d"), max: Date.current.to_s, class: "rounded-lg border border-zinc-800 bg-zinc-900 px-2.5 py-1 text-xs text-zinc-200 focus:border-emerald-500 focus:outline-none font-mono" %>
+        <span class="text-xs text-zinc-500">to</span>
+        <%= f.date_field :to, value: @to_time&.strftime("%Y-%m-%d"), min: @first_bar&.open_time&.strftime("%Y-%m-%d"), max: Date.current.to_s, class: "rounded-lg border border-zinc-800 bg-zinc-900 px-2.5 py-1 text-xs text-zinc-200 focus:border-emerald-500 focus:outline-none font-mono" %>
+        <%= f.submit "Filter", class: "cursor-pointer px-2.5 py-1 text-xs font-medium rounded-lg bg-zinc-800 text-zinc-200 hover:bg-zinc-700 hover:text-white transition" %>
+      <% end %>
+
       <%= link_to new_backtest_run_path(asset_id: @asset.id, interval: @interval), class: "inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-emerald-500 text-zinc-950 hover:bg-emerald-400 transition" do %>
         Run Backtest on <%= @asset.symbol %>
       <% end %>

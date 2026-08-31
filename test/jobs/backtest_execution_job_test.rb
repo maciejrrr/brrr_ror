@@ -68,7 +68,7 @@ class BacktestExecutionJobTest < ActiveJob::TestCase
   test "transitions to failed when not enough price bars are available" do
     asset = assets(:btc)
     user = users(:two)
-    run = BacktestRun.create!(
+    run = BacktestRun.new(
       user: user,
       asset: asset,
       interval: :one_hour,
@@ -80,6 +80,7 @@ class BacktestExecutionJobTest < ActiveJob::TestCase
       fee_percentage: 0.1,
       slippage_percentage: 0.05
     )
+    run.save!(validate: false)
 
     BacktestExecutionJob.perform_now(run.id)
     run.reload
